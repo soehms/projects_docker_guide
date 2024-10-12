@@ -37,13 +37,13 @@ Please note that this is a pre-release version. Use at your own risk.
 
 ## 1. Installation <a name="1."></a>
 
-The installer does not have a digital signature yet, so you should carefully check if [its contents](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide_installer.ps1) match the 22 lines of code shown in the last screenshot of this section.
+The installer does not have a digital signature yet, so you should carefully check if [its contents](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide_installer.ps1) match the 21 lines of code shown in the last screenshot of this section.
 
 If so, open a Powershell terminal. To do this, press the Windows key and type the word *Powershell* in the search box. Just click on the suggested app (sorry for german text in the screenshots):
 
 ![Launch Powershell](screenshots/LaunchPowershell.png)
 
-Paste the copied 22 lines of code into the Powershell terminal and accept the warnings that appear.
+Paste the copied 21 lines of code into the Powershell terminal and accept the warnings that appear.
 
 ![Paste into Powershell](screenshots/PowershellPaste.png)
 

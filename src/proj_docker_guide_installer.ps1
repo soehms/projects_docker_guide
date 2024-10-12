@@ -12,30 +12,28 @@
 
 $proj_name = "SageMath"
 
-$psfile = "proj_docker_guide.ps1"
-$icofile = "sage.ico"
 $path = $($PWD)
+$psfile = "proj_docker_guide.ps1"; $icofile = "sage.ico"
+$ps = "${path}\${psfile}"; $ico = "${path}\${icofile}"
 
-$urlps1 = "https://raw.githubusercontent.com/soehms/projects_docker_guide/main/src/${psfile}"
-$urlico = "https://raw.githubusercontent.com/soehms/projects_docker_guide/main/src/${icofile}"
+$url = "https://raw.githubusercontent.com/soehms/projects_docker_guide/main/src"
+$urlps = "${url}/${psfile}"; $urlico = "${url}/${icofile}"
+
+Invoke-WebRequest -Uri $urlps -OutFile $ps
+Invoke-WebRequest -Uri $urlico -OutFile $ico
+
 $destination = "C:\Windows\system32"
-
-Invoke-WebRequest -Uri $urlps1 -OutFile "${path}\${psfile}"
-Invoke-WebRequest -Uri $urlico -OutFile "${path}\${icofile}"
+$argu ="Move-Item -Path $ps,$ico -Destination ${destination} -Force"
+Start-Process -Verb RunAs powershell -ArgumentList $argu
 
 $ShortcutPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "${proj_name}DockerGuide.lnk")
 $WScriptObj = New-Object -ComObject WScript.Shell
 $Shortcut = $WScriptObj.CreateShortcut($ShortcutPath)
-$SourceFilePath = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-$SourceArguments = "-ExecutionPolicy Bypass -File C:\Windows\System32\proj_docker_guide.ps1"
+$SourceFilePath = "${destination}\WindowsPowerShell\v1.0\powershell.exe"
+$SourceArguments = "-ExecutionPolicy Bypass -File ${destination}\${psfile}"
 $Shortcut.TargetPath = $SourceFilePath
 $Shortcut.Arguments = $SourceArguments
 $Shortcut.WorkingDirectory = "%HOMEDRIVE%%HOMEPATH%"
-$Shortcut.IconLocation = "${path}\${icofile}" 
+$Shortcut.IconLocation = "${destination}\${icofile}"
 $Shortcut.Save()
-
-$argu ="Move-Item -Path $PWD\proj_docker_guide.ps1 -Destination ${destination} -Force"
-
-Start-Process -Verb RunAs powershell -ArgumentList $argu
-del $icofile
 
