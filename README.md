@@ -320,6 +320,8 @@ Next, start Powershell (for example, by typing `pwsh` in a bash terminal) and ca
 
 You also need to install Docker. If you don't have it, follow the instructions on the appropriate [Docker installation page](https://docs.docker.com/desktop/install/linux/).
 
+Instead of following the installation instructions for Windows as described in [Section 1.](#1.), simply download the file [proj_docker_guide.ps1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide.ps1) to the folder where you want to work with SageMath. After starting Powershell there, you can start the guide by executing `.\proj_docker_guide.ps1`.
+
 The main difference from using it on Windows is the appearance of the selection windows. On Linux they look like the following example:
 
 ![Linux sessions](screenshots/LinuxSessions.png)
