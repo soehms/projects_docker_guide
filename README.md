@@ -198,7 +198,7 @@ If the session name is prefixed with `N-`, a new tab titled *Home* will open in 
 
 ![N-session Home tab](screenshots/N-SessionHomeTab.png)
 
-The notebook provides special features for some of the files you already have there, but the most important file type for working with the notebook are those with the `.ipynb` extension. A handy way to learn more about SageMath notebooks is to download a relevant tutorial file, for example [sage_tutorial](https://raw.githubusercontent.com/davidlowryduda/notebooks/refs/heads/master/sage_tutorial.ipyn). In the example in the screenshot, it was downloaded to the default *Download* folder. If you click on that folder on the *Home* tab, the file will appear there.
+The notebook provides special features for some of the files you already have there, but the most important file type for working with the notebook are those with the `.ipynb` extension. A handy way to learn more about SageMath notebooks is to download a relevant tutorial file, for example [sage_tutorial](https://github.com/davidlowryduda/notebooks/blob/master/sage_tutorial.ipynb). In the example in the screenshot, it was downloaded to the default *Download* folder. If you click on that folder on the *Home* tab, the file will appear there.
 
 ![N-session Home tab sub-folder](screenshots/N-SessionHomeTabSubFolder.png)
 
