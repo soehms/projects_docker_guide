@@ -43,7 +43,7 @@ jobs:
           After downloading the installer, right-click it to open the context menu and run it with PowerShell.
           You may also open the installer as a text file, and copy and paste all lines into a PowerShell window.
 
-          The installer should create s shortcut on your desktop for launching SageMat Docker Guilde
+          The installer should create s shortcut on your desktop for launching SageMath Docker Guide
         draft: false
         prerelease: false
 
