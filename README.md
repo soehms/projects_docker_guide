@@ -37,15 +37,9 @@ Please note that this is a pre-release version. Use at your own risk.
 
 ## 1. Installation <a name="1."></a>
 
-The installer does not have a digital signature yet, so you should carefully check if [its contents](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide_installer.ps1) match the 21 lines of code shown in the last screenshot of this section.
+Download [sagemath_docker_guide-installer](https://github.com/soehms/projects_docker_guide/releases/download/0.2/sagemath_docker_guide-0.2-installer.ps1). Open your download folder and mark the downloaded file. Open the context menue by clicking the right mouse key. Select *Run with Powershell*:
 
-If so, open a Powershell terminal. To do this, press the Windows key and type the word *Powershell* in the search box. Just click on the suggested app (sorry for german text in the screenshots):
-
-![Launch Powershell](screenshots/LaunchPowershell.png)
-
-Paste the copied 21 lines of code into the Powershell terminal and accept the warnings that appear.
-
-![Paste into Powershell](screenshots/PowershellPaste.png)
+![Run with Powershell](screenshots/RunWithPowershell.png)
 
 After that, you should see a SageMath icon (labeled *SageMath Docker Guide*) on your desktop.
 
@@ -57,64 +51,37 @@ Simply click on the icon to launch the application.
 
 After you have clicked on the SageMath Docker Guide icon the following will happen:
 
-### 2.1 Install Docker Desktop <a name="2.1"></a>
+### 2.1 Install Docker for Powershell <a name="2.1"></a>
 
-If you already have Docker Desktop on your computer, you can [skip this section](#2.2).
+If you already have [Docker for Powershell](https://github.com/soehms/docker_for_powershell#docker-for-powershell) on your computer, you can [skip this section](#2.2). Alternatively (for advanced users), if you have a [WSL](https://learn.microsoft.com/en-us/windows/wsl/)-distribution (say Ubuntu or something similar) with a working [Docker](https://docs.docker.com/engine/install/ubuntu/) or if you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) you may skip this section, too.
 
-If you don't have Docker Desktop installed yet, you'll see the following screen:
+If you don't have Docker for Powershell installed yet, you'll see the following screen:
 
-![Installation step 1](screenshots/Installation1.png)
+![Installation step 1](screenshots/XInstallation1.png)
 
 After you accept to start the installation, the following hint will appear:
 
 ![Installation step 2](screenshots/Installation2.png)
-
-The installer itself will also ask you for your consent:
-
-![Installation step 3](screenshots/Installation3.png)
-
-The installation of Docker Desktop will take some time. At the end you will be asked to restart your computer:
-
-![Installation step 4](screenshots/Installation4.png)
-
-After your computer boots back up, Docker Desktop will ask you to accept a *Subscription Service Agreement*:
-
-![Subscription Service Agreement](screenshots/Agreement.png)
-
-![Finshing](screenshots/Finish.png)
-
-The next agreement you will be asked for will appear on this screen:
-
-![Docker Desktop Privileged Helper](screenshots/PrivilegedHelper.png)
-
-Docker Desktop will then ask you some questions that you can skip:
-
-![Welcome to Docker](screenshots/WelcomeDocker.png)
-![Welcome Survey](screenshots/WelcomeSurvey.png)
-![Sign in](screenshots/SignIn.png)
-
-Finally, it will try to start the *Docker Engine*, which is the only thing needed for the *Projects Docker Guide*. If it fails, you will see a screen like this:
-
-![Unexpected WSL error](screenshots/UnexpectedWSLerror.png)
 
 This most likely happens if your CPU virtualization technology is not enabled in your BIOS setup. In this case, try to find help on [this site](https://support.microsoft.com/en-us/windows/enable-virtualization-on-windows-c5578302-6e43-4b4b-a449-8ced115f58e1).
 If this does not solve the problem, you should follow the instructions in the [Docker documentation](https://docs.docker.com/desktop/install/windows-install/).
 
 [Go back to the Table of Contents](#TOF)
 
-### 2.2 Start Docker engine <a name="2.2"></a>
+### 2.2 Start Docker daemon <a name="2.2"></a>
 
-If your computer starts Docker Desktop automatically when it boots, you can [skip this section](#2.3).
+If your Docker starts automatically when you boot your computer, you can [skip this section](#2.3).
 
-If the Docker engine is not already running, you will see the following screen:
+If the Docker daemon is not already running, you will see the following screen:
 
 ![Deamon not running](screenshots/DeamonNotRunning.png)
 
-Just wait until the Docker Desktop app opens and shows that the engine is running (green icon in the bottom left corner of the window), then click *Retry* (in the screenshot *Wiederholen* in german). As soon as a window titled *SageMath Docker Guide ...* opens you may close the Docker Desktop app:
+Click *Retry* (in the screenshot *Wiederholen* in german) until the popup message disappears.
 
 ![Installation success](screenshots/InstallationSuccess.png)
 
 [Go back to the Table of Contents](#TOF)
+
 
 ### 2.3 Downloading SageMath <a name="2.3"></a>
 
