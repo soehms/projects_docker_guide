@@ -13,14 +13,17 @@
 $proj_name = "SageMath"
 
 $path = "$HOME\AppData\Local\SageMathDockerGuide"
-$psfile = "proj_docker_guide.ps1"; $icofile = "sage.ico"
-$ps = "${path}\${psfile}"; $ico = "${path}\${icofile}"
+$psfile = "sage_docker_guide.ps1"
+$psmfile = "proj_docker_guide.psm1"
+$icofile = "sage.ico"
+$ps = "${path}\${psfile}"; $psm = "${path}\${psmfile}"; $ico = "${path}\${icofile}"
 
 $url = "https://raw.githubusercontent.com/soehms/projects_docker_guide/main/src"
-$urlps = "${url}/${psfile}"; $urlico = "${url}/${icofile}"
+$urlps = "${url}/${psfile}"; $urlpsm = "${url}/${psmfile}"; $urlico = "${url}/${icofile}"
 
 New-Item -ItemType Directory -Force -Path $path
 Start-BitsTransfer -Source $urlps -Destination $ps
+Start-BitsTransfer -Source $urlpsm -Destination $psm
 Start-BitsTransfer -Source $urlico -Destination $ico
 
 $ShortcutPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "${proj_name}DockerGuide.lnk")
@@ -33,4 +36,3 @@ $Shortcut.Arguments = $SourceArguments
 $Shortcut.WorkingDirectory = "%HOMEDRIVE%%HOMEPATH%"
 $Shortcut.IconLocation = "$ico"
 $Shortcut.Save()
-

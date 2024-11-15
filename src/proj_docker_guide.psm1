@@ -27,6 +27,7 @@
 # Static declarations
 ###############################################################################################
 
+
 param(
     [string] $option = "no option"
 )
@@ -37,6 +38,7 @@ enum TagFilterValues {
     pre
 }
 
+$env:WSL_UTF8 = 1 # needed to pass variables to WSL commands
 
 ###############################################################################################
 # Access to global PS variables in class methods needs the following functions
@@ -60,11 +62,39 @@ function reset_matches {
     Write-Verbose "reset_matches after ${Matches}"
 }
 
+function journal_message($text) {
+    # add a line to journal file
+    Write-Verbose "Write to journal $PSScriptRoot"
+    $today = Get-Date -Format "dddd MM\/dd\/yyyy HH:mm:ss K"
+    if (os_is_linux) {
+        $journal = "$PSScriptRoot/journal.log"
+        $disk_space = (df -B1 /var/lib/docker)[1].Split()
+        $drive = $disk_space[0]
+        $disk_size = $disk_space[1] / 1GB | % {$_.ToString("####.##")}
+        $disk_free = $disk_space[3] / 1GB | % {$_.ToString("####.##")}
+    }
+    else {
+        $journal = "$PSScriptRoot\journal.log"
+        $drive = "C:"
+        $disk_space = @(foreach ($d  in Get-WmiObject -Class Win32_LogicalDisk) {if ($d.DeviceID -eq $drive) {$d.Size, $d.FreeSpace}})
+        $disk_size = $disk_space[0] / 1GB | % {$_.ToString("####.##")}
+        $disk_free = $disk_space[1] / 1GB | % {$_.ToString("####.##")}
+    }
+    if (-not (Test-Path $journal)) {
+        Write-Verbose "Init journal ${journal}"
+        "-------------------------------------------" > $journal
+        "Journal file of your projects docker guide " >> $journal
+        "-------------------------------------------" >> $journal
+    }
+    $message = "${today}: Size of drive ${drive}: ${disk_size} GB, free: ${disk_free} GB ($text)"
+    Write-Verbose "Write ${message} to journal ${journal}"
+    $message >> $journal
+}
+
 
 ###############################################################################################
 # Classes for configuration purpose
 ###############################################################################################
-
 class DockerGuideMenue {
     [string] $text
     [int] $dialog
@@ -114,6 +144,7 @@ class DockerGuideRepo {
 class DockerGuideBase {
     [string] $_proj_name
     [string] $_version
+    [string] $_default_distro
     [pscustomobject] $image_keys
     [pscustomobject] $container_keys
     [pscustomobject] $tag_keys
@@ -126,6 +157,7 @@ class DockerGuideBase {
 
     DockerGuideBase() {
         # dictionaries for keys used in https://registry.hub.docker.com/v2/repositories/
+        $this._default_distro = 'DockerForPowershell-0.1'
         $this.image_keys = [ordered]@{
             repo = 'Repository';
             tag = 'Tag';
@@ -152,11 +184,12 @@ class DockerGuideBase {
         }
         # dictionaries for dialog handling
         $this.dialogs = [ordered]@{
-            repos = 1;
-            tags = 2;
-            images = 3;
-            containers = 4;
-            apps = 5;
+            distros = 1;
+            repos = 2;
+            tags = 3;
+            images = 4;
+            containers = 5;
+            apps = 6;
         }
         $this.return_values = @{
             created = 1;
@@ -213,6 +246,7 @@ class ProjectsDockerGuide : DockerGuideBase {
     [boolean] $_ready
     [string] $_path
     [string] $_path_prefix
+    [string] $_wsl_distro
     [pscustomobject] $_container
     [pscustomobject] $_tag_lists
     [pscustomobject] $_menues
@@ -243,6 +277,7 @@ class ProjectsDockerGuide : DockerGuideBase {
         Write-Verbose "_path_prefix: $($this._path_prefix)"
         $this._proj_name = $project_name
         $menues = @{
+            install = [DockerGuideMenue]::new("Install $($this._default_distro)", $this.dialogs.distros);
             backr = [DockerGuideMenue]::new("Back", $this.dialogs.repos);
             backt = [DockerGuideMenue]::new("Back", $this.dialogs.tags);
             more = [DockerGuideMenue]::new("More", $this.dialogs.tags);
@@ -264,7 +299,6 @@ class ProjectsDockerGuide : DockerGuideBase {
     ####################################################################
     # Generic helper methods
     ####################################################################
-
     [void] banner() {
         $projname = $this._proj_name
         $version = $this._version
@@ -306,53 +340,65 @@ class ProjectsDockerGuide : DockerGuideBase {
     }
 
     [DockerGuideRepo] image_to_repo([pscustomobject] $image) {
-
+        Write-Verbose "Entering image_to_repo for $($image | Out-String)"
         $repo = $image.($this.image_keys.repo)
         $rep = $repo.Split("/")
         $user = $rep[0]
         $name = $rep[1]
         foreach ($r in $this._proj_repositories) {
             if ($r.user -eq $user -and $r.name -eq $name) {
+                Write-Verbose "Leaving image_to_repo for $($image | Out-String) with $($r | Out-String)"
                 return $r
             }
         }
+        Write-Verbose "Leaving image_to_repo for $($image | Out-String) without result"
         return $null
     }
 
     [System.Collections.ArrayList] image_to_apps([pscustomobject] $image) {
+        Write-Verbose "Entering image_to_apps for $($image | Out-String)"
         $repo = $this.image_to_repo($image)
         $apps = $repo.apps
         if ($apps.Count -eq 0) {
-            $apps = @([DockerGuideApp]::new("Default", "", 0, "", "", 0))
+            $apps = @([DockerGuideApp]::new("Default", "X-", 0, "", 0))
         }
-    return $apps
+        Write-Verbose "Leaving image_to_apps for $($image | Out-String) with $($apps | Out-String)"
+        return $apps
     }
 
     [pscustomobject] container_to_image([pscustomobject] $container) {
+        Write-Verbose "Entering container_to_image for $($container | Out-String)"
         $img = $container.($this.container_keys.image)
         $imgs = $this.find_images()
         foreach ($i in $imgs) {
             $repo = $i.($this.image_keys.repo)
             $tag = $i.($this.image_keys.tag)
             if ($img -eq "${repo}:${tag}") {
+                Write-Verbose "Leaving container_to_image for $($container | Out-String) with $($i | Out-String)"
                 return $i
             }
         }
+        Write-Verbose "Leaving container_to_image for $($container | Out-String) without result"
         return $null
     }
 
     [DockerGuideApp] container_to_app([pscustomobject] $container) {
+        Write-Verbose "Entering container_to_app for $($container | Out-String)"
         $img = $this.container_to_image($container)
+        if (-not $img) {return $null}
         $apps = $this.image_to_apps($img)
         if ($apps.Count -gt 1) {
             $name = $container.($this.container_keys.name)
             foreach ($app in $apps) {
                 if ($name.StartsWith($app.Prefix)) {
+                    Write-Verbose "Leaving container_to_image for $($container | Out-String) with $($app | Out-String)"
                     return $app
                 }
             }
         }
-        return $apps[0]
+        $app = $apps[0]
+        Write-Verbose "Leaving container_to_image for $($container | Out-String) with default $($app | Out-String)"
+        return $app
     }
 
     [pscustomobject] select_from_list([System.Collections.ArrayList] $items,
@@ -362,11 +408,15 @@ class ProjectsDockerGuide : DockerGuideBase {
                                      ) {
         # Return one image from the list according to user choice
         $proj_name = $this._proj_name
-        Write-Verbose "Entering:  select_from_list $title"
+        Write-Verbose "Entering: select_from_list $title"
         $description = "${proj_name} Docker Guide: $title Please select the line of your choice!"
         $view = @(echo $items | select $cols)
         $mkeys = @()
         foreach ($m in $menue) {
+            if ($cols.Count -eq 0) {
+                $view += $m
+                continue
+            }
             $mline = echo @($items[0]) | select $cols  # copy of first line
             foreach ($key in $cols) {
                 if ($cols.IndexOf($key) -eq 0) {
@@ -382,6 +432,7 @@ class ProjectsDockerGuide : DockerGuideBase {
         Write-Verbose "mkeys $($mkeys | Out-String)"
         $ans = $this.show_dialog($view, $description, $this.select_mode.single)
         if (-not $ans) {
+            Write-Verbose "select_from_list $title canceled"
             return $null
         }
         else {
@@ -389,10 +440,12 @@ class ProjectsDockerGuide : DockerGuideBase {
                 $ind = $menue.IndexOf($m)
                 $col = $mkeys[$ind]
                 if ($ans.$col -eq $m) {
+                    Write-Verbose "Leaving: select_from_list $title with $m"
                     return $m
                 }
             }
         }
+        Write-Verbose "Leaving: select_from_list $title with $ans"
         return $ans
     }
 
@@ -444,8 +497,15 @@ class ProjectsDockerGuide : DockerGuideBase {
         return $null
     }
 
+    [pscustomobject] select_wsl_distro($distros) {
+        # Return wsl distribution
+        $menue = $this.dialog_menue($this.dialogs.distros)
+        $title = "List of WSL distros that have Docker available."
+        return $this.select_from_list($distros, @(), $menue, $title)
+    }
+
     [pscustomobject] select_repo() {
-        # Return one tag from the repository
+        # Return a repository
         $repos = $this._proj_repositories
         $cols = $repos[0].psobject.properties.name
         $menue = $this.dialog_menue($this.dialogs.repos)
@@ -454,7 +514,7 @@ class ProjectsDockerGuide : DockerGuideBase {
     }
 
     [pscustomobject] select_tag([pscustomobject] $repo) {
-        # Return one tag from the repository
+        # Return one tag from a repository
         $tags = $this.search_tags($repo)
         $cols = $($this.tag_keys.Values)
         $menue = $this.dialog_menue($this.dialogs.tags)
@@ -465,7 +525,6 @@ class ProjectsDockerGuide : DockerGuideBase {
     ####################################################################
     # Methods to choose an image
     ####################################################################
-
     [System.Collections.ArrayList] find_images() {
         # Find all images
         return $this.find_images($false)
@@ -476,8 +535,7 @@ class ProjectsDockerGuide : DockerGuideBase {
         if ($this._images -and -not $refresh) {
             return $this._images
         }
-        $cmd = "docker images --format json"
-        $lines =  Invoke-Expression $cmd
+        $lines = $this.docker("images --format json")
         Write-Verbose "docker images: $($lines | Out-String)"
         $this._images = [System.Collections.ArrayList]@(foreach ($line in $lines) {
             $json = $line | ConvertFrom-Json
@@ -601,7 +659,6 @@ class ProjectsDockerGuide : DockerGuideBase {
     ####################################################################
     # Methods to choose a container
     ####################################################################
-
     [System.Collections.ArrayList] find_containers() {
         # Find all containers
         return $this.find_containers($false)
@@ -612,8 +669,7 @@ class ProjectsDockerGuide : DockerGuideBase {
         if ($this._containers -and -not $refresh) {
             return $this._containers
         }
-        $cmd = "docker ps -a --format json"
-        $lines =  Invoke-Expression $cmd
+        $lines = $this.docker("ps -a --format json")
         Write-Verbose "docker ps: $($lines | Out-String)"
         $this._containers = [System.Collections.ArrayList]@(foreach ($line in $lines) {
             $json = $line | ConvertFrom-Json
@@ -674,7 +730,7 @@ class ProjectsDockerGuide : DockerGuideBase {
         $p = $s
         foreach ($c in $this._containers) {
            $app = $this.container_to_app($c)
-           if ($app.port -eq $s) {
+           if ($app -and $app.port -eq $s) {
                $p += 1
            }
         }
@@ -736,38 +792,186 @@ class ProjectsDockerGuide : DockerGuideBase {
     ####################################################################
     # Methods that directly access Docker
     ####################################################################
-    [boolean] start_docker() {
-        try {
-            Invoke-Expression "docker"
+    [string] docker_str([string] $arguments) {
+        $d = $this._wsl_distro
+        if ($d) {
+            $cmd = "wsl -d $d -e docker $arguments"
         }
-        catch [System.Management.Automation.CommandNotFoundException] {
-            # ToDo try to install Docker
-            $text = 'Docker is not available on your system, but needed for this software! Shall we try to install it?'
-            $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
-            if ($answer -eq $this.button_pressed.yes) {
-                $this._install_assist.run()
-                # The following uncommented code can be used to run the installation in a separate terminal with admin permission
-                # This will be needed if the installation has to be extended in more preliminary steps.
-                # $argu = "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process -Force; proj_docker_guide --install"
-                # Start-Process -Verb runas powershell -ArgumentList $argu
+        else {
+            $cmd = "docker $arguments"
+        }
+        Write-Verbose "Command to call Docker: $cmd"
+        return $cmd
+    }
+
+    [pscustomobject] docker([string] $arguments) {
+        $cmd = $this.docker_str($arguments)
+        Write-Verbose "Invoke Docker with: $cmd"
+        return Invoke-Expression $cmd
+    }
+
+    [void] start_daemon() {
+        Write-Host "The Docker daemon is not running but will be started now"
+        $d = $this._wsl_distro
+        $def = $this._default_distro.Split('-')[0] # version independent part
+        if (-not $d) {
+            if ($this._linux) {
+                Write-Host "Your admin authentication is needed to start the Docker daemon!"
+                sudo service docker start
+                Write-Verbose "Starting Docker daemon"
+                return
             }
-            return $false
-        }
-        $test_docker_running = Invoke-Expression "docker ps 2>&1"
-        if ($test_docker_running.getType().Name -eq "ErrorRecord") {
+            # share using Docker Desktop
             $cmd = 'C:\Program Files\Docker\Docker\resources\dockerd.exe' # must be started with 'Start-Process -Verb runAs' and than only listens to admin
             $cmd = 'C:\Program Files\Docker\Docker\Docker Desktop.exe'
-            Write-Host "The Docker deamon is not running! Try to start Docker Desktop!"
             Start-Process $cmd
+            Write-Verbose "Starting Docker Desktop with $cmd"
         }
-        while ($test_docker_running.getType().Name -eq "ErrorRecord") {
-            $text = 'Please wait until the Docker engine is running! As soon as this message does not appear any more, you may close the Docker Desktop app.'
+        elseif ($d.StartsWith($def)) {
+            # default distro
+            wsl -d $d -e sh /root/start_dockerd
+            Write-Verbose "Starting Docker daemon in default WSL-distro $d"
+        }
+        else {
+            # others with fingers crossed
+            Write-Host "Your admin authentication is needed to start the Docker daemon!"
+            wsl -d $d -e sudo service docker start
+            Write-Verbose "Starting Docker daemon in WSL-distro $d"
+        }
+    }
+
+    [boolean] daemon_down() {
+        $test = $this.docker("ps") -join ' ' | Out-String
+        Write-Verbose "Test if Docker daemon s up with ps gives '$test'"
+        if (-not $test) {
+            return $true
+        }
+        return -not $test.Contains('CONTAINER ID')
+    }
+
+    [void] run_install_assist() {
+        $distro = $this._default_distro
+        $text = "${distro} is not available on your system, but needed for this software! Shall we install it?"
+        $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
+        if ($answer -eq $this.button_pressed.yes) {
+            $this._install_assist.run()
+        }
+    }
+
+    [boolean] set_wsl_distro() {
+        if ($this._linux) {return $true}
+        $test_wsl = wsl --status
+        if ($test_wsl -eq $null) {
+            $this.run_install_assist()
+            return $false
+        }
+        elseif (($test_wsl -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
+            $this._install_assist.reboot()
+            return $false
+        }
+        $def = $this._default_distro.Split('-')[0] # version independent part
+        $distributions = wsl -l -q | Sort-Object -Descending 
+
+        $docker_desktop = $null
+        $default = $null
+        $docker_distros = @()
+        foreach ($d in $distributions) {
+            if ($d -eq "") {
+                continue
+            }
+            if ($d -eq "docker-desktop") {
+                Write-Verbose "Docker Desktop is present"
+                $docker_desktop = $d
+                $docker_distros += $d
+                continue
+            }              
+            elseif ($d.StartsWith($def)) {
+                Write-Verbose "$def is present: $d"
+                $default = $d
+                $docker_distros += $d
+                continue
+            }
+            else {
+                $test_distro = wsl -d $d -e docker info
+                Write-Verbose "Test WSL distro $d gives '$test_distro'"
+                if ($test_distro.StartsWith('Client')) {
+                    $distro = $d
+                    Write-Verbose "Use WSL distro: $distro"
+                    $docker_distros += $d
+                }
+            }
+        }
+
+        $distro = $null
+        if ($docker_distros.Count -eq 1)
+        {
+            if ($docker_distros[0] -eq $default) {
+                $distro = $default
+            }
+            elseif ($docker_distros[0] -ne $docker_desktop) {
+                $distro = $docker_distros[0]
+                $text = "Docker is available on your system in the WSL-distribution $distro. Shall we share its usage?"
+                $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
+                if ($answer -ne $this.button_pressed.yes) {
+                    return $false
+                }
+            }
+        }
+        elseif ($docker_distros.Count -gt 1)
+        {
+            if ($default) {
+                $distro = $default
+            }
+            else
+            {
+                $answer = $this.select_wsl_distro($docker_distros)
+                if (-not $answer) {return $false}
+                if ($answer -eq $this._menues.install.text) {
+                    $this.run_install_assist()
+                    return $false
+                }
+                $distro = $answer
+            }
+        }
+
+        if ($distro -eq $null) {
+            try {
+                docker
+                if ($docker_desktop) {
+                    $text = "Docker Desktop is available on your system. Shall we share its usage?"
+                    $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
+                    if ($answer -ne $this.button_pressed.yes) {
+                        return $false
+                    }
+                }
+            }
+            catch [System.Management.Automation.CommandNotFoundException] {
+                $this.run_install_assist()
+                return $false
+            }
+        }
+
+        $this._wsl_distro = $distro
+        return $true
+    }
+
+    [boolean] start_docker() {
+        if (-not $this.set_wsl_distro()) {
+            return $false
+        }
+        if ($this.daemon_down()) {
+            $this.start_daemon()
+        }
+        while ($this.daemon_down()) {
+            $text = 'Please wait until the Docker engine is running!'
+            if (-not $this._wsl_distro) {
+                $text = $text + 'As soon as this message does not appear any more, you may close the Docker Desktop app.'
+            }
             $answer = $this.popup_message($text, $this.buttons.retry_cancel, $this.icons.information)
             if ($answer -ne $this.button_pressed.retry) {
                 return $false
             }
             Write-Verbose "Start Docker $($answer | Out-String)"
-            $test_docker_running = Invoke-Expression "docker ps 2>&1"
         }
         return $true
     }
@@ -779,9 +983,12 @@ class ProjectsDockerGuide : DockerGuideBase {
         $tname = $tag.($this.tag_keys.name)
         $name = "${ruser}/${rname}:${tname}"
         Write-Host "Download of ${name} starts!"
-        $argu = "/c docker pull $($name)"
+        $cmd = $this.docker_str("pull $($name)")
+        $argu = "/c " + $cmd
         Write-Verbose "docker pull: ${argu}"
+        journal_message "before $cmd"
         Start-Process -FilePath cmd -ArgumentList $argu -Wait
+        journal_message "after $cmd"
     }
 
     [void] delete_image([pscustomobject] $i) {
@@ -798,9 +1005,9 @@ class ProjectsDockerGuide : DockerGuideBase {
         }
         Write-Verbose "cont_to_delete $($cont_to_delete | Out-String)"
         if ($cont_to_delete.Count -eq 0) {
-            $cmd = "docker rmi ${name}"
-            Write-Verbose "docker rmi: ${cmd}"
-            Invoke-Expression $cmd
+            journal_message "before deleting ${name}"
+            $this.docker("rmi ${name}")
+            journal_message "after deleting ${name}"
             Write-Host "The software ${name} has been deleted!"
             # remove it from the list
             $this._images = @($this._images | Where-Object {$i.($this.image_keys.id) -ne $_.($this.image_keys.id)})
@@ -864,11 +1071,14 @@ class ProjectsDockerGuide : DockerGuideBase {
         $option = " $($app.option)"
         $name = $this.find_new_container_name($app)
         $spwd = "$PWD"
+        if ($this._wsl_distro) {
+            $spwd = $spwd.Replace('C:', '/mnt/c').Replace('\', '/')
+        }
         $tpwd = "/home/" + $name
-        $cmd = "docker create -it --mount `"type=bind,src=$($spwd),target=$($tpwd)`" --name $($name) -w $($tpwd)$($port) $($repo):$($tag)$($option)"
-        Write-Verbose "docker create: ${cmd}"
+        journal_message "before creating ${name}"
+        $this.docker("create -it --mount `"type=bind,src=$($spwd),target=$($tpwd)`" --name $($name) -w $($tpwd)$($port) $($repo):$($tag)$($option)")
+        journal_message "after creating ${name}"
         $this._port_maps[$name] = $p
-        Invoke-Expression $cmd
         $this._containers = $null  # to refresh the list
     }
 
@@ -877,12 +1087,10 @@ class ProjectsDockerGuide : DockerGuideBase {
         $id = $c.($this.container_keys.id)
         $name = $c.($this.container_keys.name)
         Write-Host "Delete container ${name} (id ${id})"
-        $cmd = "docker stop ${id}"
-        Write-Verbose "docker stop: ${cmd}"
-        Invoke-Expression $cmd
-        $cmd = "docker rm ${id}"
-        Write-Verbose "docker rm: ${cmd}"
-        Invoke-Expression $cmd
+        journal_message "before deleting ${name} (id ${id})"
+        $this.docker("stop ${id}")
+        $this.docker("rm ${id}")
+        journal_message "after deleting ${name} (id ${id})"
         # remove it from the list
         $this._containers = @($this._containers | Where-Object {$id -ne $_.($this.container_keys.id)})
         Write-Verbose "Containers Count $($this._containers.Count)"
@@ -898,11 +1106,10 @@ class ProjectsDockerGuide : DockerGuideBase {
         $port_a = $app.port
         $port_m = $ports[$name]
         Write-Host "Attach container ${name} (id ${id})"
-        $cmd = "docker start $($id)"
-        Invoke-Expression $cmd
+        $this.docker("start $($id)")
         if ($port_a -gt 0) {
             Write-Verbose "Use port $($port_m | Out-String) from mapping list $($ports | Out-String)"
-            $cmd = "docker logs $($id)"
+            $cmd = $this.docker_str("logs $($id)")
             reset_matches
             $url = ""
             $port = ""
@@ -930,11 +1137,12 @@ class ProjectsDockerGuide : DockerGuideBase {
             Start-Process $url
         }
         else {
+            $cmd = $this.docker_str("attach $($id)")
             if ($this._linux) {
-                $argu = "-x docker attach $($id)"
+                $argu = "-x " + $cmd
             }
             else {
-                $argu = "/c docker attach $($id)"
+                $argu = "/c " + $cmd
             }
             Write-Verbose "docker attach: ${argu}"
             Start-Process -FilePath cmd -ArgumentList $argu -Wait
@@ -1000,33 +1208,19 @@ class DockerInstallAssistent : DockerGuideBase {
     }
 
     [void] banner() {
+        $app_name = $this._proj_name + " Docker Guide"
         @(
         "                                                          "
-        " Docker Desktop will now be installed!                    "
+        " Docker For Powershell will now be installed!             "
         "                                                          "
-        " After that your computer must be rebooted.               "
+        " This also needs the Windows Subsystem for Linux (WSL)    "
         "                                                          "
-        " Afterwards, Docker Desptop will ask you to accept a      "
-        " Subscription Service Agreement. Choose the               "
-        " recommented setting on finishing it.                     "
+        " If you didn't use this before on your computer it might  "
+        " be necessary to install this too.                        "
         "                                                          "
-        " Docker Desktop will automatically restart and ask        "
-        " some questions, all of which you can skip.               "
-        "                                                          "
-        " Finally, it will try to start what is called the Docker  "
-        " engine. That is the only thing we need. This means       "
-        " that you may close the Docker Desktop app once the       "
-        " engine is running.                                       "
-        "                                                          "
-        " If the engine does not start successfully, then you      "
-        " should check if your CPU's virtualization mode is        "
-        " enabled in your BIOS-setup.                              "
-        "                                                          "
-        " For more problems with installing Docker Desktop, see    "
-        " here:                                                    "
-        "                                                          "
-        " https://docs.docker.com/desktop/install/windows-install/ "
-        "                                                          "
+        " In this case you will be asked to reboot your computer.  "
+        " Afterwards, to finish the instalation start              "
+        " ${app_name} again.                                "
         ) | Write-Host -BackgroundColor White -ForegroundColor Red
     }
 
@@ -1041,101 +1235,27 @@ class DockerInstallAssistent : DockerGuideBase {
         Restart-Computer
     }
 
-    [boolean] winget_available() {
-        Write-Host "Check if the Microsoft App Installer can be used."
-        $cmd = "winget list --disable-interactivity"
-        Write-Verbose "Test winget ${cmd}"
-        $test_winget = $null
-        try {
-            $test_winget = Invoke-Expression $cmd | Out-String
-        }
-        catch [System.Management.Automation.CommandNotFoundException] {
-            Write-Verbose "Winget not installed"
-        }
-        if ($test_winget) {
-            Write-Verbose "Winget test 1 ${test_winget}"
-            if ($test_winget.Length -lt 10) {
-                Write-Verbose "Winget corrupt"
-                $test_winget = $null
-            }
-            else {
-                $cmd = "winget upgrade Paint --disable-interactivity"
-                $test_winget = Invoke-Expression $cmd | Out-String
-                Write-Verbose "Winget test 2 ${test_winget}"
-                if ($test_winget.Contains('0x8a15000f')) {
-                    Write-Verbose "Winget corrupt"
-                    $test_winget = $null
-                }
-            }
-        }
-        return ($test_winget -ne $null)
-    }
-
-    [void] install_docker_winget() {
-        $argu = "install --exact --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements"
-        Write-Verbose "Install Docker ${argu}"
-        Write-Host "Install Docker Desktop via winget"
-        Start-Process -Verb runAs winget -ArgumentList $argu -Wait
-        $this.reboot()
-    }
-
-    [void] install_docker_native() {
-        $url = 'https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe?utm_source=docker&utm_medium=webreferral&utm_campaign=docs-driven-download-win-amd64'
-        $file = "docker-installer.exe"
-        $web_client = New-Object System.Net.WebClient
-        Write-Host "Download the Docker Desktop installer"
-        $web_client.DownloadFile($url, $file)
-        Write-Host "Install Docker Desktop"
-        Start-Process -Verb runAs -Wait docker-installer.exe " install --quiet"
-        del $file
-        $this.reboot()
-    }
-
     [void] run() {
-        Write-Verbose "Docker not installed! Try to install it."
+        $distro = $this._default_distro
+        Write-Verbose "${distro} will now be installed!"
         $this.banner()
-        $use_winget = $this.winget_available()
-        $text = 'Docker Desktop installation starts now. After this your comuter must be rebooted. Continue?'
+        $text = "${distro} installation starts now. Maybe your computer must be rebooted during the process. Continue?"
         $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
         if ($answer -ne $this.button_pressed.yes) {
             return
         }
-        if ($use_winget) {
-            $this.install_docker_winget()
-        }
-        else {
-            $this.install_docker_native()
-        }
+        $version = $distro.split('-')[1]
+        $url_templ = "https://github.com/soehms/docker_for_powershell/releases/download/VER/docker_for_powershell-VER-installer.ps1"
+        $url = $url_templ.Replace('VER', $version)
+        Write-Verbose "URL: ${url}"
+        $file = "docker_for_powershell-installer.ps1"
+        Write-Verbose "File: ${file}"
+        $web_client = New-Object System.Net.WebClient
+        Write-Host "Download the ${distro} installer"
+        $web_client.DownloadFile($url, $file)
+        Write-Host "Install ${distro}"
+        $argu = "Set-ExecutionPolicy Bypass -Scope  Process -Force; .\docker_for_powershell-installer.ps1"
+        Start-Process -Wait powershell -ArgumentList $argu
+        del $file
     }
-}
-
-
-###############################################################################################
-# Project spezific configuration 
-###############################################################################################
-$ipython = [DockerGuideApp]::new("Work in a Sage customized IPython terminal (default)", "S-", 0, "", 1)
-$notebook = [DockerGuideApp]::new("Work in a Jupyter notebook", "N-", 8888, "sage-jupyter", 2)
-$lab = [DockerGuideApp]::new("Work in Jupyter lab", "L-", 8888, "sage-jupyterlab", 3)
-$bash = [DockerGuideApp]::new("Work in a bash terminal (advanced)", "B-", 0, "", 4)
-
-$all_apps = @($ipython, $notebook, $lab, $bash)
-$all_apps = @($ipython, $notebook) # lab and bash not functional, yet
-$bash_app = @($bash)
-
-$sage_repositories = @(
-    [DockerGuideRepo]::new("sagemath", "sagemath", "Repository for users, ony stable releases (default)", [TagFilterValues]::stable, $all_apps)
-    [DockerGuideRepo]::new("sagemath", "sagemath", "Repository for users, only pre-releases (advanced)", [TagFilterValues]::pre, $all_apps),
-    [DockerGuideRepo]::new("sagemathinc", "cocalc-docker", "Repository for users, Cocalc version", [TagFilterValues]::all, $bash_app),
-    [DockerGuideRepo]::new("computop", "sage", "Repository for users, featuring geometric topology", [TagFilterValues]::all, $bash_app),
-    [DockerGuideRepo]::new("sagemath", "sagemath-dev", "Repository for development (advanced)", [TagFilterValues]::all, $bash_app)
-)
-
-
-if ($option -eq "--install") {
-    $docker_installer = [DockerInstallAssistent]::new("SageMath")
-    $docker_installer.run()
-}
-else {
-    $sage_docker_guide = [ProjectsDockerGuide]::new("SageMath", $sage_repositories)
-    $sage_docker_guide.run()
 }
