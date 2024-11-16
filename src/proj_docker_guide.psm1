@@ -928,7 +928,8 @@ class ProjectsDockerGuide : DockerGuideBase {
                 if (-not $answer) {return $false}
                 if ($answer -eq $this._menues.install.text) {
                     $this.run_install_assist()
-                    return $false
+                    $distro = $default
+                    return $true
                 }
                 $distro = $answer
             }
