@@ -9,7 +9,7 @@
 ##############################################################################
 
 
-Using module ./proj_docker_guide.psm1
+Using module .\proj_docker_guide.psm1
 
 ###############################################################################################
 # Project spezific configuration 
@@ -23,7 +23,7 @@ $all_apps = @($ipython, $notebook, $lab, $bash)
 $all_apps = @($ipython, $notebook) # lab and bash not functional, yet
 $bash_app = @($bash)
 
-$sage_repositories = @(
+$sagemath_repositories = @(
     [DockerGuideRepo]::new("sagemath", "sagemath", "Repository for users, ony stable releases (default)", [TagFilterValues]::stable, $all_apps)
     [DockerGuideRepo]::new("sagemath", "sagemath", "Repository for users, only pre-releases (advanced)", [TagFilterValues]::pre, $all_apps),
     [DockerGuideRepo]::new("sagemathinc", "cocalc-docker", "Repository for users, Cocalc version", [TagFilterValues]::all, $bash_app),
@@ -32,5 +32,5 @@ $sage_repositories = @(
 )
 
 
-$sage_docker_guide = [ProjectsDockerGuide]::new("SageMath", $sage_repositories)
-$sage_docker_guide.run()
+$sagemath_docker_guide = [ProjectsDockerGuide]::new("SageMath", $sagemath_repositories)
+$sagemath_docker_guide.run()

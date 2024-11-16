@@ -13,7 +13,7 @@
 $proj_name = "SageMath"
 
 $path = "$HOME\AppData\Local\SageMathDockerGuide"
-$psfile = "sage_docker_guide.ps1"
+$psfile = "sagemath_docker_guide.ps1"
 $psmfile = "proj_docker_guide.psm1"
 $icofile = "sage.ico"
 $ps = "${path}\${psfile}"; $psm = "${path}\${psmfile}"; $ico = "${path}\${icofile}"
@@ -25,6 +25,7 @@ New-Item -ItemType Directory -Force -Path $path
 Start-BitsTransfer -Source $urlps -Destination $ps
 Start-BitsTransfer -Source $urlpsm -Destination $psm
 Start-BitsTransfer -Source $urlico -Destination $ico
+(Get-Content -Raw $ps) -creplace '$psmfile', '$psm' | Set-Content -NoNewLine $ps # adjust module path
 
 $ShortcutPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "${proj_name}DockerGuide.lnk")
 $WScriptObj = New-Object -ComObject WScript.Shell
