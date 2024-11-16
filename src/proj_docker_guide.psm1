@@ -849,29 +849,18 @@ class ProjectsDockerGuide : DockerGuideBase {
         return -not $test.Contains('CONTAINER ID')
     }
 
-    [void] run_install_assist() {
-        $distro = $this._default_distro
-        $text = "${distro} is not available on your system, but needed for this software! Shall we install it?"
-        $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
-        if ($answer -eq $this.button_pressed.yes) {
-            $this._install_assist.run()
-        }
-    }
-
     [boolean] set_wsl_distro() {
         if ($this._linux) {return $true}
-        $test_wsl = wsl --status
-        if ($test_wsl -eq $null) {
-            $this.run_install_assist()
+        if ($this._install_assist.reboot_needed()) {
+            if ($this._install_assist.run()) {
+                $this._wsl_distro = $this._default_distro
+                return $true
+            }
             return $false
         }
-        elseif (($test_wsl -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
-            $this._install_assist.reboot()
-            return $false
-        }
-        $def = $this._default_distro.Split('-')[0] # version independent part
-        $distributions = wsl -l -q | Sort-Object -Descending 
 
+        $def = $this._default_distro.Split('-')[0] # version independent part
+        $distributions = wsl -l -q | Sort-Object -Descending
         $docker_desktop = $null
         $default = $null
         $docker_distros = @()
@@ -913,7 +902,12 @@ class ProjectsDockerGuide : DockerGuideBase {
                 $text = "Docker is available on your system in the WSL-distribution $distro. Shall we share its usage?"
                 $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
                 if ($answer -ne $this.button_pressed.yes) {
-                    return $false
+                    if ($this._install_assist.run()) {
+                        $distro = $this._default_distro
+                    }
+                    else {
+                        return $false
+                    }
                 }
             }
         }
@@ -927,9 +921,12 @@ class ProjectsDockerGuide : DockerGuideBase {
                 $answer = $this.select_wsl_distro($docker_distros)
                 if (-not $answer) {return $false}
                 if ($answer -eq $this._menues.install.text) {
-                    $this.run_install_assist()
-                    $distro = $default
-                    return $true
+                    if ($this._install_assist.run()) {
+                        $distro = $this._default_distro
+                    }
+                    else {
+                        return $false
+                    }
                 }
                 $distro = $answer
             }
@@ -942,17 +939,27 @@ class ProjectsDockerGuide : DockerGuideBase {
                     $text = "Docker Desktop is available on your system. Shall we share its usage?"
                     $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
                     if ($answer -ne $this.button_pressed.yes) {
-                        return $false
+                        if ($this._install_assist.run()) {
+                            $distro = $this._default_distro
+                        }
+                        else {
+                            return $false
+                        }
                     }
                 }
             }
             catch [System.Management.Automation.CommandNotFoundException] {
-                $this.run_install_assist()
-                return $false
+                if ($this._install_assist.run()) {
+                    $distro = $this._default_distro
+                }
+                else {
+                    return $false
+                }
             }
         }
 
         $this._wsl_distro = $distro
+        Write-Verbose "Set WSL-Distro: $distro"
         return $true
     }
 
@@ -1236,11 +1243,15 @@ class DockerInstallAssistent : DockerGuideBase {
         Restart-Computer
     }
 
-    [void] run() {
+    [void] install() {
         $distro = $this._default_distro
         Write-Verbose "${distro} will now be installed!"
         $this.banner()
-        $text = "${distro} installation starts now. Maybe your computer must be rebooted during the process. Continue?"
+        $reboot_info =""
+        if ($this.reboot_needed()) {
+            $reboot_info = " Maybe your computer must be rebooted during the process."
+        }
+        $text = "${distro} installation starts now.${reboot_info} Continue?"
         $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
         if ($answer -ne $this.button_pressed.yes) {
             return
@@ -1255,8 +1266,43 @@ class DockerInstallAssistent : DockerGuideBase {
         Write-Host "Download the ${distro} installer"
         $web_client.DownloadFile($url, $file)
         Write-Host "Install ${distro}"
-        $argu = "Set-ExecutionPolicy Bypass -Scope  Process -Force; .\docker_for_powershell-installer.ps1"
+        $argu = "-ExecutionPolicy Bypass .\docker_for_powershell-installer.ps1"
         Start-Process -Wait powershell -ArgumentList $argu
         del $file
     }
+
+    [boolean] reboot_needed() {
+        $test_wsl = wsl --status
+        if ($test_wsl -eq $null) {
+            return $true
+        }
+        elseif (($test_wsl -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
+            return $true
+        }
+        return $false
+    }
+
+    [boolean] run() {
+        $distro = $this._default_distro
+        if ((wsl -l -q) -contains $distro) {
+            return $true
+        }
+        $text = "${distro} is not available on your system, but needed for this software! Shall we install it?"
+        $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
+        if ($answer -eq $this.button_pressed.yes) {
+            $test_wsl = wsl --status
+            if ($test_wsl -eq $null) {
+                $this.install()
+                return $false
+            }
+            elseif (($test_wsl -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
+                $this.reboot()
+                return $false
+            }
+            $this.install()
+            return $true
+        }
+        return $false
+    }
+
 }
