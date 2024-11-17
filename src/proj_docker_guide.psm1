@@ -1272,11 +1272,20 @@ class DockerInstallAssistent : DockerGuideBase {
     }
 
     [boolean] reboot_needed() {
+        $app_name = $this._proj_name + " Docker Guide"
         $test_wsl = wsl --status
         if ($test_wsl -eq $null) {
+            Write-Host "It seems that the Windows Subsystem for Linux (WSL) is not installed on your system!  ${app_name} does not run without it!"
             return $true
         }
-        elseif (($test_wsl -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
+        $test_str = $test_wsl -join ' ' | Out-String
+        if ($test_str.Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
+            Write-Host "It seems that you need to reboot your system!"
+            return $true
+        }
+        if ($test_str.Contains('enablevirtualization')) {
+            Write-Host "It seems that virtualization is not enabled in your BIOS settings!  ${app_name} does not run without it!"
+            Write-Host "For help have a look at https://support.microsoft.com/en-us/windows/enable-virtualization-on-windows-c5578302-6e43-4b4b-a449-8ced115f58e1"
             return $true
         }
         return $false
@@ -1290,12 +1299,11 @@ class DockerInstallAssistent : DockerGuideBase {
         $text = "${distro} is not available on your system, but needed for this software! Shall we install it?"
         $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
         if ($answer -eq $this.button_pressed.yes) {
-            $test_wsl = wsl --status
-            if ($test_wsl -eq $null) {
+            if ((wsl --status) -eq $null) {
                 $this.install()
                 return $false
             }
-            elseif (($test_wsl -join ' ' | Out-String).Contains('WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED')) {
+            elseif ($this.reboot_needed()) {
                 $this.reboot()
                 return $false
             }
