@@ -157,7 +157,7 @@ class DockerGuideBase {
 
     DockerGuideBase() {
         # dictionaries for keys used in https://registry.hub.docker.com/v2/repositories/
-        $this._default_distro = 'DockerForPowershell-0.1'
+        $this._default_distro = 'DockerForPowershell-0.2'
         $this.image_keys = [ordered]@{
             repo = 'Repository';
             tag = 'Tag';
@@ -258,7 +258,7 @@ class ProjectsDockerGuide : DockerGuideBase {
     ProjectsDockerGuide([string] $project_name, [System.Collections.ArrayList] $project_repositories) {
         # Instatiating the class
         $this._proj_name = $project_name
-        $this._version = '0.1'
+        $this._version = '0.2'
         $this._install_assist = [DockerInstallAssistent]::new($project_name)
         $this._linux = $false
         $this._port_maps = @{}
@@ -1275,7 +1275,7 @@ class DockerInstallAssistent : DockerGuideBase {
         $app_name = $this._proj_name + " Docker Guide"
         $test_wsl = wsl --status
         if ($test_wsl -eq $null) {
-            Write-Host "It seems that the Windows Subsystem for Linux (WSL) is not installed on your system!  ${app_name} does not run without it!"
+            Write-Host "It seems that you don't have Docker on your system!  ${app_name} does not run without it!"
             return $true
         }
         $test_str = $test_wsl -join ' ' | Out-String
