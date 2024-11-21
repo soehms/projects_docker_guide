@@ -64,7 +64,7 @@ After you have clicked on the SageMath Docker Guide icon the following will happ
 
 ### 2.1 Install Docker for Powershell <a name="2.1"></a>
 
-If you already have [Docker for Powershell](https://github.com/soehms/docker_for_powershell#docker-for-powershell) on your computer, you can [skip this section](#2.2). Alternatively (for advanced users), if you have a [WSL](https://learn.microsoft.com/en-us/windows/wsl/)-distribution (say Ubuntu or something similar) with a working [Docker](https://docs.docker.com/engine/install/ubuntu/) or if you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) you may skip this section, too.
+If you already have [Docker for Powershell](https://github.com/soehms/docker_for_powershell#docker-for-powershell) on your computer, you can [skip this section](#2.2). Alternatively (for advanced users), if you have a [WSL](https://learn.microsoft.com/en-us/windows/wsl/)-distribution (say Ubuntu or something similar) with a working [Docker](https://docs.docker.com/engine/install/ubuntu/) or if you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) you may [skip this section](#2.2), too.
 
 If you don't have any Docker installed yet, you'll see the following screen:
 
@@ -76,7 +76,7 @@ After you accept to start the installation, the following hint will appear:
 
 #### 2.1.1 Install the Windows Subsystem for Linux <a name="2.1.1"></a>
 
-*Docker for Powershell* needs the *Windows Subsystem for Linux* (`WSL`). If this is present on your system you may skip this section. If not the installer tries to set this up.
+*Docker for Powershell* needs the *Windows Subsystem for Linux* (`WSL`). If this is present on your system you may [skip this section](#2.2). If not the installer tries to set this up.
 
 ![Installation progress](screenshots/WSL-InstallProgress.png)
 
