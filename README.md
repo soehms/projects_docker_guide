@@ -50,11 +50,13 @@ Set-ExecutionPolicy Bypass -Scope  Process -Force
 .\Downloads\sagemath_docker_guide-0.2-installer.ps1
 ```
 
-Here it is asumed that you have downloaded the installer to your default `Downloads` folder. To open such a Powershell terminal push the Windows key, type `powershell` into the search field and launch the suggested app.
+Here it is asumed that you have downloaded the installer to your default `Downloads` folder. Furthermore you have to replace the version number by the current one.
 
-![Installation of SageMath Docker Guide](screenshots/InstallGuide.png)
+![Installation of SageMath Docker Guide](screenshots/SetExecutionPolicy.png)
 
-If the insaller was successful, you should see a SageMath icon (labeled *SageMath Docker Guide*) on your desktop. Simply click on the icon to launch the application.
+To open such a Powershell terminal push the Windows key, type `powershell` into the search field and launch the suggested app. If the installer was successful, you should see a SageMath icon (labeled *SageMath Docker Guide*) on your desktop. Simply click on the icon to launch the application.
+
+![Launch SageMath Docker Guide](screenshots/InstallPlusFirstDownload.png)
 
 ## 2. Usage <a name="2."></a>
 
@@ -64,7 +66,7 @@ After you have clicked on the SageMath Docker Guide icon the following will happ
 
 If you already have [Docker for Powershell](https://github.com/soehms/docker_for_powershell#docker-for-powershell) on your computer, you can [skip this section](#2.2). Alternatively (for advanced users), if you have a [WSL](https://learn.microsoft.com/en-us/windows/wsl/)-distribution (say Ubuntu or something similar) with a working [Docker](https://docs.docker.com/engine/install/ubuntu/) or if you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) you may skip this section, too.
 
-If you don't have Docker for Powershell installed yet, you'll see the following screen:
+If you don't have any Docker installed yet, you'll see the following screen:
 
 ![Installation needed](screenshots/DockerForPowershellMissing.png)
 
@@ -97,8 +99,6 @@ If Docker starts automatically when you boot your computer, you can [skip this s
 ![Deamon not running](screenshots/DeamonNotRunning.png)
 
 Click *Retry* (in the screenshot *Wiederholen* in german) until the popup message disappears.
-
-![Installation success](screenshots/InstallationSuccess.png)
 
 [Go back to the Table of Contents](#TOF)
 
@@ -291,7 +291,7 @@ If you no longer want to use *SageMath Docker Guide* but want to keep *Docker fo
 
 ### 3.2 Remove Docker for Powershell <a name="3.2"></a>
 
-If you don't like to use *Docker for Powershell* any more, open a Powershell terminal as described in [section 1.](#1.). To see the explicit name of the `WSL` distribution including the version number type
+If you don't like to use *Docker for Powershell* any more, open a Powershell terminal as described in [section 1](#1.). To see the explicit name of the `WSL` distribution including the version number type
 
 ```
 wsl -l -q
@@ -324,7 +324,7 @@ Next, start Powershell (for example, by typing `pwsh` in a bash terminal) and ca
 
 You also need to install Docker. If you don't have it, follow the instructions on the appropriate [Docker installation page](https://docs.docker.com/desktop/install/linux/).
 
-Instead of following the installation instructions for Windows as described in [Section 1.](#1.), simply download the files [sagemath_docker_guide.ps1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/sagemath_docker_guide.ps1) and [proj_docker_guide.psm1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide.psm1) to the folder where you want to work with SageMath. After starting Powershell there, you can start the guide by executing `.\sagemath_docker_guide.ps1`.
+Instead of following the installation instructions for Windows as described in [section 1](#1.), simply download the files [sagemath_docker_guide.ps1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/sagemath_docker_guide.ps1) and [proj_docker_guide.psm1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide.psm1) to the folder where you want to work with SageMath. After starting Powershell there, you can start the guide by executing `.\sagemath_docker_guide.ps1`.
 
 The main difference from using it on Windows is the appearance of the selection windows. On Linux they look like the following example:
 
