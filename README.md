@@ -100,9 +100,9 @@ This most likely happens if your CPU virtualization technology is not enabled in
 
 If Docker starts automatically when you boot your computer, you can [skip this section](#2.3). If the Docker daemon is not already running, you will see the following screen:
 
-![Deamon not running](screenshots/DeamonNotRunning.png)
+![Deamon not running](screenshots/DaemonNotRunningAfterInstall.png)
 
-Click *Retry* (in the screenshot *Wiederholen* in german) until the popup message disappears.
+Click *Retry* until the popup message disappears.
 
 [Go back to the Table of Contents](#TOF)
 
@@ -119,11 +119,11 @@ The first line takes you to the stable software versions of SageMath, the second
 
 ![List of download versions](screenshots/ListOfDownloadVersions.png)
 
-Again select the line of your choice and press OK. The download progress will be displayed in a separate window. The following screenshot is from the download of version 10.5.beta3 of the SageMath development version:
+Again select the line of your choice and press OK. The download progress will be displayed in a separate window.
 
-![Download development version](screenshots/DownloadDev.png)
+![Download development version](screenshots/DownloadingSagemath10.4.png)
 
-Depending on the quality of your internet connection, this may take some time. If you interrupt it, it will resume from where you interrupted it when you restart the SageMath Docker Guide:
+Depending on the quality of your internet connection, this may take some time. If you interrupt it, it will resume from where you interrupted it when you restart the SageMath Docker Guide as in this eaxmple:
 
 ![Download Computop repeated](screenshots/DownloadComputopRepeated.png)
 
