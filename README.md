@@ -43,18 +43,18 @@ Download [sagemath_docker_guide-installer](https://github.com/soehms/projects_do
 
 ![Run with Powershell](screenshots/RunWithPowershell.png)
 
-If you are asked to agree to open the file, just do it! If this does not work, open a Powershell terminal and execute the following code there:
+If you're asked if you want to agree to open the file, just do so! If that doesn't work, open a Powershell terminal (i.e. press the Windows key, type "powershell" in the search box, and launch the suggested app). Run the following code there:
 
 ```
 Set-ExecutionPolicy Bypass -Scope  Process -Force
 .\Downloads\sagemath_docker_guide-0.2-installer.ps1
 ```
 
-Here it is asumed that you have downloaded the installer to your default `Downloads` folder. Furthermore you have to replace the version number by the current one.
+This assumes that you have downloaded the installer to your default `Downloads` folder. You will also need to replace the version number with the current one. If you get the following screen, answer "Yes":
 
 ![Installation of SageMath Docker Guide](screenshots/SetExecutionPolicy.png)
 
-To open such a Powershell terminal push the Windows key, type `powershell` into the search field and launch the suggested app. If the installer was successful, you should see a SageMath icon (labeled *SageMath Docker Guide*) on your desktop. Simply click on the icon to launch the application.
+If the installation was successful, you should see a SageMath icon (labeled *SageMath Docker Guide*) on your desktop. Simply click on the icon to launch the application.
 
 ![Launch SageMath Docker Guide](screenshots/IconInstalled.png)
 
@@ -79,6 +79,10 @@ After you accept to start the installation, the following hint will appear:
 *Docker for Powershell* needs the *Windows Subsystem for Linux* (`WSL`). If this is present on your system you may [skip this section](#2.2). If not the installer tries to set this up.
 
 ![Installation progress](screenshots/WSL-InstallProgress.png)
+
+During the process you must grant the following permissions:
+
+![WSL install agreement](screenshots/WSLinstallAgreement.png) ![WSL install agreement](screenshots/WSLinstallAgreement2.png)
 
 After the installation of `WSL` is finished you have to reboot your computer:
 
