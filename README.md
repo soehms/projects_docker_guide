@@ -43,7 +43,7 @@ Download [sagemath_docker_guide-installer](https://github.com/soehms/projects_do
 
 ![Run with Powershell](screenshots/RunWithPowershell.png)
 
-If this does not work, open a Powershell terminal and execute the following code there:
+If you are asked to agree to open the file, just do it! If this does not work, open a Powershell terminal and execute the following code there:
 
 ```
 Set-ExecutionPolicy Bypass -Scope  Process -Force
@@ -56,7 +56,7 @@ Here it is asumed that you have downloaded the installer to your default `Downlo
 
 To open such a Powershell terminal push the Windows key, type `powershell` into the search field and launch the suggested app. If the installer was successful, you should see a SageMath icon (labeled *SageMath Docker Guide*) on your desktop. Simply click on the icon to launch the application.
 
-![Launch SageMath Docker Guide](screenshots/InstallPlusFirstDownload.png)
+![Launch SageMath Docker Guide](screenshots/IconInstalled.png)
 
 ## 2. Usage <a name="2."></a>
 
