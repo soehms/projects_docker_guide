@@ -1,5 +1,5 @@
 ##############################################################################
-#       Copyright (C) 2024 Sebastian Oehms <seb.oehms@gmail.com>
+#       Copyright (C) 2026 Sebastian Oehms <seb.oehms@gmail.com>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,10 +25,12 @@ $lab_docker = [DockerGuideApp]::new("Work in Jupyter lab", "L-", 8888, "sage-jup
 $all_apps = @($ipython, $notebook_docker, $lab_docker, $bash)
 $all_apps = @($ipython, $notebook_docker) # lab and bash not functional, yet
 $bash_app = @($bash)
+$appimage = @($ipython, $notebook, $lab)
 
 
 $sagemath_repositories = @(
     [DockerGuideRepo]::new("sagemath", "sagemath", "Repository for inexperienced users, ony stable releases (default)", [RepoHost]::docker_hub, [TagFilterValues]::stable, $all_apps),
+    [DockerGuideRepo]::new("3-manifolds", "sage_appimage", "SageMath App for inexperienced, only stable releases", [RepoHost]::github, [TagFilterValues]::all, $appimage),
     [DockerGuideRepo]::new("sagemath", "sagemath", "Repository for inexperienced users, only pre-releases", [RepoHost]::docker_hub, [TagFilterValues]::pre, $all_apps),
     [DockerGuideRepo]::new("sagemathinc", "cocalc-docker", "Repository for experienced users, Cocalc version)", [RepoHost]::docker_hub, [TagFilterValues]::all, $bash_app),
     [DockerGuideRepo]::new("computop", "sage", "Repository for experienced users, featuring geometric topology", [RepoHost]::docker_hub, [TagFilterValues]::all, $bash_app),

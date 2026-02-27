@@ -38,7 +38,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ env.VERSION }}
-        release_name: Installer for the SageMath Docker Guide ${{ env.VERSION }}
+        release_name: Installers for the SageMath Docker and AppImage Guide ${{ env.VERSION }}
         body: |
           After downloading the installer, right-click it to open the context menu and run it with PowerShell.
           You may also open the installer as a text file, and copy and paste all lines into a PowerShell window.
@@ -54,6 +54,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./src/sagemath_docker_guide_installer.ps1
-        asset_name: sagemath_docker_guide-${{ env.VERSION }}-installer.ps1
+        asset_path: ./src/sagemath_docker_and_appimage_guide_installer.ps1
+        asset_name: sagemath_docker_and_appimage_guide-${{ env.VERSION }}-installer.ps1
         asset_content_type: application/octet-stream

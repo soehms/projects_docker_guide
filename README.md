@@ -1,18 +1,20 @@
-# Your Projects Docker Guide
+# Your Projects Docker and AppImage Guide
 
-A Powershell script that guides a user through your project's Docker images
+A Powershell script that guides a user through your project's [Docker](https://docs.docker.com/) images and [AppImages](https://appimage.org/).
 
 ## Introduction
 
-The primary purpose of [Docker](https://docs.docker.com/) is to provide a testing environment for software developers. Therefore, the terminology used in the application and documentation is aimed at developers. Thus, using Docker can be quite frustrating for users without development experience.
+The primary purpose of Docker is to provide a testing environment for software developers. Therefore, the terminology used in the application and documentation is aimed at developers. Thus, using Docker can be quite frustrating for users without development experience.
 
 On the other hand, there are cases where Docker can also be interesting for users without development experience. For example, if a software does not offer executable files for Windows, Docker offers the possibility to use this software on this operating system as well.
 
 A few years ago, [SageMath](https://www.sagemath.org/) offered binaries for Windows built with Cygwin (see for example [this page](https://opendreamkit.org/2017/10/11/SageWindows/)). Currently, the only way to work with SageMath on Windows is using the [Windows Subsystem for Linux](https://learn.microsoft.com/en-us/windows/wsl/) (`WSL`), which also requires some affinity for development.
 
-*Projects Docker Guide* is designed to fill this gap. It helps a user install [Docker for Powershell](https://github.com/soehms/docker_for_powershell) and then walks him through using the Docker images offered by your project. The current implementation assumes that this project is SageMath, but project-specific settings are separated from the general code so they can be easily adapted to other cases.
+*Projects Docker and AppImage Guide* is designed to fill this gap. It helps a user install [Docker for Powershell](https://github.com/soehms/docker_for_powershell) and then walks him through using the Docker images and AppImages (available since release 0.3) offered by your project. The current implementation assumes that this project is SageMath, but project-specific settings are separated from the general code so they can be easily adapted to other cases.
 
 Please note that this is a pre-release version. Use at your own risk.
+
+The following manual describes the *Docker and AppImage Guide* configured for SageMath.
 
 ## Table of Contents  <a name="TOF"></a>
 
@@ -37,9 +39,10 @@ Please note that this is a pre-release version. Use at your own risk.
 4. [Usage on Linux](#4.)
 5. [Help](#5.)
 
+
 ## 1. Installation <a name="1."></a>
 
-Download [sagemath_docker_guide-installer](https://github.com/soehms/projects_docker_guide/releases/download/0.2/sagemath_docker_guide-0.2-installer.ps1). Open your download folder and mark the downloaded file. Open the context menue by clicking the right mouse key. Select *Run with Powershell*:
+Download [sagemath_docker_and_appimage_guide-installer](https://github.com/soehms/projects_docker_guide/releases/download/0.3/sagemath_docker_and_appimage_guide-0.3-installer.ps1). Open your download folder and mark the downloaded file. Open the context menue by clicking the right mouse key. Select *Run with Powershell*:
 
 ![Run with Powershell](screenshots/RunWithPowershell.png)
 
@@ -47,20 +50,31 @@ If you're asked if you want to agree to open the file, just do so! If that doesn
 
 ```
 Set-ExecutionPolicy Bypass -Scope  Process -Force
-.\Downloads\sagemath_docker_guide-0.2-installer.ps1
+.\Downloads\sagemath_docker_and_appimage_guide-0.3-installer.ps1
 ```
 
 This assumes that you have downloaded the installer to your default `Downloads` folder. You will also need to replace the version number with the current one. If you get the following screen, answer "Yes":
 
-![Installation of SageMath Docker Guide](screenshots/SetExecutionPolicy.png)
+![Installation of SageMath Docker and AppImage Guide](screenshots/SetExecutionPolicy.png)
 
-If the installation was successful, you should see a SageMath icon (labeled *SageMath Docker Guide*) on your desktop. Simply click on the icon to launch the application.
+If the installation was successful, you should see a SageMath icon (labeled *SageMath Docker and AppImage Guide*) on your desktop. Simply click on the icon to launch the application.
 
-![Launch SageMath Docker Guide](screenshots/IconInstalled.png)
+### 1.1 Reduced versions <a name="1.1"></a>
+
+Per default the installer creates the *2in1* version of the app. This allows you to use Docker and AppImages in one application. If you are sure that you only need one of these both, you may install a reduced version. To do this just run the according command:
+
+```
+\Downloads\sagemath_docker_and_appimage_guide-0.3-installer.ps1 -Type OnlyDocker
+\Downloads\sagemath_docker_and_appimage_guide-0.3-installer.ps1 -Type OnlyAppImage
+```
+
+instead of the one shown above. In the sequel we asume that you have the default version installed.
+
+![Launch SageMath Docker and AppImage Guide](screenshots/IconInstalled.png)
 
 ## 2. Usage <a name="2."></a>
 
-After you have clicked on the SageMath Docker Guide icon the following will happen:
+After you have clicked on the SageMath Docker and AppImage Guide icon the following will happen:
 
 ### 2.1 Install Docker for Powershell <a name="2.1"></a>
 
@@ -88,7 +102,7 @@ After the installation of `WSL` is finished you have to reboot your computer:
 
 ![Reboot](screenshots/WSLreboot.png)
 
-If your computer is up again, click on the *SageMath Docker Guide* icon once more to continue the installation of Docker for Powershell. In rare cases you will see a screen like this:
+If your computer is up again, click on the *SageMath Docker and AppImage Guide* icon once more to continue the installation of Docker for Powershell. In rare cases you will see a screen like this:
 
 ![CPU virtualization](screenshots/BIOSnotEnabled.png)
 
@@ -109,13 +123,15 @@ Click *Retry* until the popup message disappears.
 
 ### 2.3 Downloading SageMath <a name="2.3"></a>
 
-If you already have downloaded SageMath from Docker hub, you can [skip this section](#2.4).
+If you already have downloaded SageMath from Docker hub or as an AppImgae, you can [skip this section](#2.4).
 
 If you don't have, you will see the following screen:
 
 ![Repository list](screenshots/RepositoryList.png)
 
-The first line takes you to the stable software versions of SageMath, the second to pre-release versions that do not guarantee that SageMath will run stable. The other lines are intended for advanced users. After selecting the desired line, press the OK button. You can also use the up and down arrow keys to select a line and then press Enter. A new window will open with the available software versions that you can download:
+The first two lines take you to the stable software versions of SageMath. The first one is registered on Docker Hub, the second one on GitHub as an AppImage (available since release 0.3).
+
+The third line shows pre-release versions that do not guarantee that SageMath will run stable. The other lines are intended for advanced users. After selecting the desired line, press the OK button. You can also use the up and down arrow keys to select a line and then press Enter. A new window will open with the available software versions that you can download:
 
 ![List of download versions](screenshots/ListOfDownloadVersions.png)
 
@@ -123,7 +139,7 @@ Again select the line of your choice and press OK. The download progress will be
 
 ![Download development version](screenshots/DownloadingSagemath10.4.png)
 
-Depending on the quality of your internet connection, this may take some time. If you interrupt it, it will resume from where you interrupted it when you restart the SageMath Docker Guide as in this eaxmple:
+Depending on the quality of your internet connection, this may take some time. If you interrupt it, it will resume from where you interrupted it when you restart the *SageMath Docker and AppImage Guide* as in this eaxmple:
 
 ![Download Computop repeated](screenshots/DownloadComputopRepeated.png)
 
@@ -133,7 +149,7 @@ Depending on the quality of your internet connection, this may take some time. I
 
 If you have already created a session, you can [skip this section](#2.5).
 
-If not, after starting *SageMath Docker Guide* you will see a list of software versions you have downloaded before (following the former section):
+If not, after starting *SageMath Docker and AppImage Guide* you will see a list of software versions you have downloaded before (following the former section):
 
 ![List of downloaded software](screenshots/ListOfImages.png)
 
@@ -152,7 +168,7 @@ The naming scheme of the sessions is as follows: It starts with a prefix accordi
 * `L-` is the lab type of session (not supported yet). Here you can work with Sage in a [Jupyter lab](https://jupyter.org/) in your default browser.
 * `B-` is the bash type of session. Here you can work in a [bash terminal](https://en.wikipedia.org/wiki/Bash_(Unix_shell)) in which you can start SageMath by calling `sage`.
 
-The prefix is followed by a part that points to the folder you can access while working with SageMath. By default, this is your home directory. You can change this in the *SageMath Docker Guide* icon settings in the `Working Directory` field, for example by changing `%HOMEDRIVE%%HOMEPATH%` to `%HOMEDRIVE%%HOMEPATH%\sage` if you prefer to work in a subfolder `sage` of your home directory.
+The prefix is followed by a part that points to the folder you can access while working with SageMath. By default, this is your home directory. You can change this in the *SageMath Docker and AppImage Guide* icon settings in the `Working Directory` field, for example by changing `%HOMEDRIVE%%HOMEPATH%` to `%HOMEDRIVE%%HOMEPATH%\sage` if you prefer to work in a subfolder `sage` of your home directory.
 
 ![Icon settings](screenshots/IconSettings.png)
 
@@ -162,9 +178,11 @@ The last part of the name is just a sequential number.
 
 [Go back to the Table of Contents](#TOF)
 
+
 ### 2.5 Connecting to a session <a name="2.5"></a>
 
 When you see the *List of sessions ...* window, you are ready to start working with SageMath. Simply select the session you want to connect and press OK.
+If you have created a session for an AppImage, this step is not necessary, as it will start immediately after creation.
 
 #### 2.5.1 IPython terminal <a name="2.5.1"></a>
 
@@ -210,6 +228,8 @@ Give your new notebook a name using the `Save Notebook As` entry in the `File` m
 ![N-session name file](screenshots/N-SessionsNameFile.png)
 
 For more information on using Jupyter notebooks, see their [documentation](https://docs.jupyter.org/en/latest/).
+
+Note that sessions created with software downloaded from GitHub behave differently than those created with Docker Hub software. These sessions are not persistent and are deleted after closing the *Docker and AppImage Guide*. Another difference is that they share the same command history.
 
 [Go back to the Table of Contents](#TOF)
 
@@ -285,13 +305,13 @@ Note that you cannot install all kinds of optional packages in `S-` and `N-` ses
 
 ## 3. Uninstallation <a name="3."></a>
 
-The *SageMath Docker Guide* itself hardly takes up any space on your hard drive. The underlying *Docker for Powershell* takes up some more space (about 0.3 GB plus 1.7 GB for `WSL`). However, this is not the majority of the space that may be used. Most of it is due to the use of the software, namely downloading the SageMath software as described in section 2.3.
+The *SageMath Docker and AppImage Guide* itself hardly takes up any space on your hard drive. The underlying *Docker for Powershell* takes up some more space (about 0.3 GB plus 1.7 GB for `WSL`). However, this is not the majority of the space that may be used. Most of it is due to the use of the software, namely downloading the SageMath software as described in section 2.3.
 
 The most important thing to free up occupied space is therefore to remove these software versions from your computer. The size they take up on your device is indicated in the *List of software that have been downloaded*. To delete them, follow [section 2.7](#2.7). After that, do the following:
 
 ### 3.1 Continue using Docker for Powershell <a name="3.1"></a>
 
-If you no longer want to use *SageMath Docker Guide* but want to keep *Docker for Powershell*, delete all downloaded SageMath software as described above. You can also delete the SageMath Docker Guide desktop icon if you want. That's all you need to do to free up used space.
+If you no longer want to use *SageMath Docker and AppImage Guide* but want to keep *Docker for Powershell*, delete all downloaded SageMath software as described above. You can also delete the *SageMath Docker and AppImage Guide* desktop icon if you want. That's all you need to do to free up used space.
 
 ### 3.2 Remove Docker for Powershell <a name="3.2"></a>
 
@@ -304,10 +324,10 @@ wsl -l -q
 You can remove it by:
 
 ```
-wsl --unregister DockerForPowershell-0.2
+wsl --unregister DockerForPowershell-0.3
 ```
 
-Replace the version number `0.2` by the one displayed in your terminal above.
+Replace the version number `0.3` by the one displayed in your terminal above.
 
 #### 3.2.1 Remove `WSL` <a name="3.2.1"></a>
 
@@ -322,13 +342,13 @@ wsl --uninstall
 
 ## 4. Usage on Linux <a name="4."></a>
 
-If you want to use *SageMath Docker Guide* on Linux, you need to install *Powershell* on your system. To do so, follow the appropriate instructions on the [Powershell installation page](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.4).
+If you want to use *SageMath Docker and AppImage Guide* on Linux, you need to install *Powershell* on your system. To do so, follow the appropriate instructions on the [Powershell installation page](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.4).
 
 Next, start Powershell (for example, by typing `pwsh` in a bash terminal) and call `Install-Module Microsoft.PowerShell.ConsoleGuiTools`. You also need to set an alias for your terminal. For example, if you have a Mate terminal, set `alias cmd=mate-terminal`.
 
 You also need to install Docker. If you don't have it, follow the instructions on the appropriate [Docker installation page](https://docs.docker.com/desktop/install/linux/).
 
-Instead of following the installation instructions for Windows as described in [section 1](#1.), simply download the files [sagemath_docker_guide.ps1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/sagemath_docker_guide.ps1) and [proj_docker_guide.psm1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide.psm1) to the folder where you want to work with SageMath. After starting Powershell there, you can start the guide by executing `.\sagemath_docker_guide.ps1`.
+Instead of following the installation instructions for Windows as described in [section 1](#1.), simply download the files [sagemath_docker_and_appimage_guide.ps1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/sagemath_docker_and_appimage_guide.ps1) and [proj_docker_guide.psm1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide.psm1) to the folder where you want to work with SageMath. After starting Powershell there, you can start the guide by executing `.\sagemath_docker_and_appimage_guide.ps1`.
 
 The main difference from using it on Windows is the appearance of the selection windows. On Linux they look like the following example:
 

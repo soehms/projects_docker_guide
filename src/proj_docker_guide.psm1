@@ -27,6 +27,7 @@
 # Static declarations
 ###############################################################################################
 
+using namespace System.Management.Automation
 
 param(
     [string] $option = "no option"
@@ -36,6 +37,11 @@ enum TagFilterValues {
     all
     stable
     pre
+}
+
+enum RepoHost {
+    docker_hub
+    github
 }
 
 $env:WSL_UTF8 = 1 # needed to pass variables to WSL commands
@@ -125,13 +131,15 @@ class DockerGuideRepo {
     [string] $user
     [string] $name
     [string] $description
+    [RepoHost] $host
     [TagFilterValues] $filter
     [System.Collections.ArrayList] $apps
 
-    DockerGuideRepo([string] $user, [string] $name, [string] $description, [TagFilterValues] $filter, [System.Collections.ArrayList] $apps) {
+    DockerGuideRepo([string] $user, [string] $name, [string] $description, [RepoHost] $host, [TagFilterValues] $filter, [System.Collections.ArrayList] $apps) {
         $this.user = $user
         $this.name = $name
         $this.description = $description
+        $this.host = $host
         $this.filter = $filter
         $this.apps = $apps
     }
@@ -143,9 +151,11 @@ class DockerGuideRepo {
 ###############################################################################################
 class DockerGuideBase {
     [string] $_proj_name
+    [string] $_app_name
     [string] $_version
     [string] $_default_distro
     [pscustomobject] $image_keys
+    [pscustomobject] $appimage_keys
     [pscustomobject] $container_keys
     [pscustomobject] $tag_keys
     [pscustomobject] $dialogs
@@ -157,13 +167,21 @@ class DockerGuideBase {
 
     DockerGuideBase() {
         # dictionaries for keys used in https://registry.hub.docker.com/v2/repositories/
-        $this._default_distro = 'DockerForPowershell-0.2'
+        $this._default_distro = 'DockerForPowershell-0.3'
         $this.image_keys = [ordered]@{
             repo = 'Repository';
             tag = 'Tag';
             id = 'ID';
             created = 'CreatedAt';
             size = 'Size';
+        }
+        $this.appimage_keys = [ordered]@{
+            assets_url = 'assets_url';
+            download_url = 'download_url';
+            tag = 'tag_name';
+            created = 'created_at';
+            user = 'user';
+            repo = 'repo';
         }
         $this.container_keys = [ordered]@{
             name = 'Names';
@@ -227,8 +245,25 @@ class DockerGuideBase {
     }
 
     [pscustomobject] popup_message([string] $text, [int] $button, [int] $icon) {
-        $wshell = New-Object -ComObject Wscript.Shell
-        $answer = $wshell.Popup($text, 0, $this._proj_name + ' Docker Guide', $button + $icon)
+        $title = $this._app_name
+        if (os_is_linux) {
+            if ($button -eq $this.buttons.ok) {
+                zenity --info --text=$text --title=$title
+                $answer = $this.button_pressed.ok
+            }
+            else {
+                zenity --question --text=$text --title=$title
+                if ($LASTEXITCODE -eq 0) {
+                    $answer = $this.button_pressed.yes
+                } else {
+                    $answer = $this.button_pressed.no
+                }
+            }
+        }
+        else {
+            $wshell = New-Object -ComObject Wscript.Shell
+            $answer = $wshell.Popup($text, 0, $title, $button + $icon)
+        }
         Write-Verbose "Popup ${answer} ${text}"
         return $answer
     }
@@ -251,6 +286,8 @@ class ProjectsDockerGuide : DockerGuideBase {
     [pscustomobject] $_tag_lists
     [pscustomobject] $_menues
     [System.Collections.Hashtable] $_port_maps
+    [System.Collections.Hashtable] $_tags
+    [System.Collections.Hashtable] $_appimage_filenames
     [System.Collections.ArrayList] $_proj_repositories
     [System.Collections.ArrayList] $_images
     [System.Collections.ArrayList] $_containers
@@ -258,10 +295,11 @@ class ProjectsDockerGuide : DockerGuideBase {
     ProjectsDockerGuide([string] $project_name, [System.Collections.ArrayList] $project_repositories) {
         # Instatiating the class
         $this._proj_name = $project_name
-        $this._version = '0.2'
-        $this._install_assist = [DockerInstallAssistent]::new($project_name)
+        $this._version = '0.3'
         $this._linux = $false
         $this._port_maps = @{}
+        $this._tags = @{}
+        $this._appimage_filenames = @{}
         $this._path = "$PWD"
         if (os_is_linux) {
             $this._linux = $true
@@ -275,7 +313,6 @@ class ProjectsDockerGuide : DockerGuideBase {
             $this._path_prefix = $this._path.Replace(':\', '_').Replace('\', '-')
         }
         Write-Verbose "_path_prefix: $($this._path_prefix)"
-        $this._proj_name = $project_name
         $menues = @{
             install = [DockerGuideMenue]::new("Install $($this._default_distro)", $this.dialogs.distros);
             backr = [DockerGuideMenue]::new("Back", $this.dialogs.repos);
@@ -293,7 +330,17 @@ class ProjectsDockerGuide : DockerGuideBase {
         $this._menues = $menues
         $this._proj_repositories = $project_repositories
         $this.banner()
-        $this._ready = $this.start_docker()
+        $this._install_assist = [DockerInstallAssistent]::new($this._app_name)
+        if ($this.docker_daemon_needed()) {
+            $this._ready = $this.start_docker()
+        } else {
+            if (-not $this.set_wsl_distro()) {
+                $this._ready = $false
+            }
+            else {
+                $this._ready = $true
+            }
+        }
     }
 
     ####################################################################
@@ -302,13 +349,27 @@ class ProjectsDockerGuide : DockerGuideBase {
     [void] banner() {
         $projname = $this._proj_name
         $version = $this._version
+        if ($this.docker_daemon_needed()) {
+            if ($this.appimage_needed()) {
+                $app_name = "$projname Docker and AppImage Guide"
+            }
+            else {
+                $app_name = "$projname Docker Guide"
+            }
+        }
+        else {
+            $app_name = "$projname AppImage Guide"
+        }
+        $line = "-" * ($app_name.Length + $version.Length + 29)
+
         @(
         ""
-        "-----------------------------------------------------"
-        "| Welcome to the ${projname} Docker Guide version ${version}! |"
-        "-----------------------------------------------------"
+        "$line"
+        "| Welcome to the ${app_name} version ${version}! |"
+        "$line"
         ""
         ) | Write-Host -BackgroundColor White -ForegroundColor DarkBlue
+        $this._app_name = $app_name
     }
 
     [pscustomobject] show_dialog([System.Collections.ArrayList] $view, [string] $description, [int] $mode) {
@@ -325,6 +386,10 @@ class ProjectsDockerGuide : DockerGuideBase {
         return $ans
     }
 
+    [System.Collections.ArrayList] dialog_menue([int] $dialog) {
+        return @(foreach ($m in $this._menues.values) {if ($m.dialog -eq $dialog) {$m.text}})
+    }
+
     [boolean] check_proj_image([string] $img) {
         $proj_reps = @(foreach ($r in $this._proj_repositories) {
             "$($r.user)/$($r.name)"
@@ -335,471 +400,59 @@ class ProjectsDockerGuide : DockerGuideBase {
         return $false
     }
 
-    [System.Collections.ArrayList] dialog_menue([int] $dialog) {
-        return @(foreach ($m in $this._menues.values) {if ($m.dialog -eq $dialog) {$m.text}})
-    }
-
-    [DockerGuideRepo] image_to_repo([pscustomobject] $image) {
-        Write-Verbose "Entering image_to_repo for $($image | Out-String)"
-        $repo = $image.($this.image_keys.repo)
-        $rep = $repo.Split("/")
-        $user = $rep[0]
-        $name = $rep[1]
+    [boolean] docker_daemon_needed() {
         foreach ($r in $this._proj_repositories) {
-            if ($r.user -eq $user -and $r.name -eq $name) {
-                Write-Verbose "Leaving image_to_repo for $($image | Out-String) with $($r | Out-String)"
-                return $r
+            if ($r.host -eq [RepoHost]::docker_hub) {
+                return $true
             }
         }
-        Write-Verbose "Leaving image_to_repo for $($image | Out-String) without result"
-        return $null
+        return $false
     }
 
-    [System.Collections.ArrayList] image_to_apps([pscustomobject] $image) {
-        Write-Verbose "Entering image_to_apps for $($image | Out-String)"
-        $repo = $this.image_to_repo($image)
-        $apps = $repo.apps
-        if ($apps.Count -eq 0) {
-            $apps = @([DockerGuideApp]::new("Default", "X-", 0, "", 0))
-        }
-        Write-Verbose "Leaving image_to_apps for $($image | Out-String) with $($apps | Out-String)"
-        return $apps
-    }
-
-    [pscustomobject] container_to_image([pscustomobject] $container) {
-        Write-Verbose "Entering container_to_image for $($container | Out-String)"
-        $img = $container.($this.container_keys.image)
-        $imgs = $this.find_images()
-        foreach ($i in $imgs) {
-            $repo = $i.($this.image_keys.repo)
-            $tag = $i.($this.image_keys.tag)
-            if ($img -eq "${repo}:${tag}") {
-                Write-Verbose "Leaving container_to_image for $($container | Out-String) with $($i | Out-String)"
-                return $i
+    [boolean] appimage_needed() {
+        foreach ($r in $this._proj_repositories) {
+            if ($r.host -eq [RepoHost]::github) {
+                return $true
             }
         }
-        Write-Verbose "Leaving container_to_image for $($container | Out-String) without result"
-        return $null
-    }
-
-    [DockerGuideApp] container_to_app([pscustomobject] $container) {
-        Write-Verbose "Entering container_to_app for $($container | Out-String)"
-        $img = $this.container_to_image($container)
-        if (-not $img) {return $null}
-        $apps = $this.image_to_apps($img)
-        if ($apps.Count -gt 1) {
-            $name = $container.($this.container_keys.name)
-            foreach ($app in $apps) {
-                if ($name.StartsWith($app.Prefix)) {
-                    Write-Verbose "Leaving container_to_image for $($container | Out-String) with $($app | Out-String)"
-                    return $app
-                }
-            }
-        }
-        $app = $apps[0]
-        Write-Verbose "Leaving container_to_image for $($container | Out-String) with default $($app | Out-String)"
-        return $app
-    }
-
-    [pscustomobject] select_from_list([System.Collections.ArrayList] $items,
-                                      [System.Collections.ArrayList] $cols,
-                                      [System.Collections.ArrayList] $menue,
-                                      [string] $title
-                                     ) {
-        # Return one image from the list according to user choice
-        $proj_name = $this._proj_name
-        Write-Verbose "Entering: select_from_list $title"
-        $description = "${proj_name} Docker Guide: $title Please select the line of your choice!"
-        $view = @(echo $items | select $cols)
-        $mkeys = @()
-        foreach ($m in $menue) {
-            if ($cols.Count -eq 0) {
-                $view += $m
-                continue
-            }
-            $mline = echo @($items[0]) | select $cols  # copy of first line
-            foreach ($key in $cols) {
-                if ($cols.IndexOf($key) -eq 0) {
-                    $mline.$key = $m
-                    $mkeys += $key
-                }
-                else {
-                    $mline.$key = ""
-                }
-            }
-            $view += $mline
-        }
-        Write-Verbose "mkeys $($mkeys | Out-String)"
-        $ans = $this.show_dialog($view, $description, $this.select_mode.single)
-        if (-not $ans) {
-            Write-Verbose "select_from_list $title canceled"
-            return $null
-        }
-        else {
-            foreach ($m in $menue) {
-                $ind = $menue.IndexOf($m)
-                $col = $mkeys[$ind]
-                if ($ans.$col -eq $m) {
-                    Write-Verbose "Leaving: select_from_list $title with $m"
-                    return $m
-                }
-            }
-        }
-        Write-Verbose "Leaving: select_from_list $title with $ans"
-        return $ans
-    }
-
-    [System.Collections.ArrayList] search_tags([pscustomobject] $repo) {
-        # search tags for the given repository on Docker Hub
-        $uri = "https://registry.hub.docker.com/v2/repositories/$($repo.user)/$($repo.name)/tags/?page_size=250"
-        Write-Verbose "Invoke-WebRequest ${uri}"
-        $result = Invoke-WebRequest -UseBasicParsing -Uri $uri
-        $JsonObject = ConvertFrom-Json -InputObject $result.Content
-        $res = $JsonObject.results
-        # filter the result
-        $new_res = @()
-        foreach ($t in $res) {
-            if ($t.name.Contains('latest') -or $t.name.Contains('develop')) {
-                continue
-            }
-            if ($repo.filter -eq [TagFilterValues]::pre) {
-                if ($t.name.Contains('beta') -or $t.name.Contains('rc')) {
-                    $new_res += $t
-                }
-            }
-            elseif ($repo.filter -eq [TagFilterValues]::stable) {
-                if (-not ($t.name.Contains('beta') -or $t.name.Contains('rc'))) {
-                    $new_res += $t
-                }
-            }
-            else {
-                $new_res += $t
-            }
-        }
-        return $new_res
-    }
-
-    [DockerGuideApp] select_app($apps) {
-        # Return one tag from the repository
-        $title = "List of different applications to work with $($this._proj_name)."
-        $app_names = $apps[0].psobject.Properties.Name
-        $cols = @($app_names[0], $app_names[1])
-        $view = @(echo $apps | select $cols)
-        $description = "$($this._proj_name) Docker Guide: $title Please select the line of your choice!"
-        $ans = $this.show_dialog($view, $description, $this.select_mode.single)
-        foreach ($app in $apps) {
-            if ($app.Name -eq $ans.Name) {
-                Write-Verbose "Selected app: $($app | Out-String)"
-                return $app
-            }
-        }
-        Write-Verbose "No Selection $($ans | Out-String)"
-        return $null
-    }
-
-    [pscustomobject] select_wsl_distro($distros) {
-        # Return wsl distribution
-        $menue = $this.dialog_menue($this.dialogs.distros)
-        $title = "List of WSL distros that have Docker available."
-        return $this.select_from_list($distros, @(), $menue, $title)
-    }
-
-    [pscustomobject] select_repo() {
-        # Return a repository
-        $repos = $this._proj_repositories
-        $cols = $repos[0].psobject.properties.name
-        $menue = $this.dialog_menue($this.dialogs.repos)
-        $title = "List of software that can be downloaded."
-        return $this.select_from_list($repos, $cols, $menue, $title)
-    }
-
-    [pscustomobject] select_tag([pscustomobject] $repo) {
-        # Return one tag from a repository
-        $tags = $this.search_tags($repo)
-        $cols = $($this.tag_keys.Values)
-        $menue = $this.dialog_menue($this.dialogs.tags)
-        $title = "List of software versions that can be downloaded."
-        return $this.select_from_list($tags, $cols, $menue, $title)
+        return $false
     }
 
     ####################################################################
-    # Methods to choose an image
+    # Methods that directly access Docker or Bash
     ####################################################################
-    [System.Collections.ArrayList] find_images() {
-        # Find all images
-        return $this.find_images($false)
-    }
-
-    [System.Collections.ArrayList] find_images([bool] $refresh) {
-        # Find all images
-        if ($this._images -and -not $refresh) {
-            return $this._images
-        }
-        $lines = $this.docker("images --format json")
-        Write-Verbose "docker images: $($lines | Out-String)"
-        $this._images = [System.Collections.ArrayList]@(foreach ($line in $lines) {
-            $json = $line | ConvertFrom-Json
-            $json
-        })
-        Write-Verbose "Images found: $($this._images | Out-String)"
-        return $this._images
-    }
-
-    [System.Collections.ArrayList] find_proj_images() {
-        # Filter the list of containers for the project
-        $proj_images = [System.Collections.ArrayList]@()
-        if (-not $this._images) {
-            $this.find_images()
-        }
-        foreach ($i in $this._images) {
-        $irep = $i.($this.image_keys.repo)
-            if ($this.check_proj_image($irep)) {
-                $proj_images.Add($i) | Out-Null
-            }
-        }
-        return $proj_images
-    }
-
-    [pscustomobject] choose_image() {
-        # Return the Image for which a new container should be started
-        Write-Verbose "Entering choose image"
-        do {
-            $images = $this.find_proj_images()
-            $i = $images.Count
-            if ($i -eq 0) {
-                $ans = $this.pull_images()
-                if ($ans -eq $this.return_values.pulled) {
-                    continue
-                }
-                elseif ($this._menues.backr.text -eq $ans) {
-                    continue
-                }
-                else {
-                    return $ans
-                }
-            }
-            $ans = $this.select_image($images)
-
-            if ($this._menues.download.text -eq $ans) {
-                $ans = $this.pull_images()
-                if ($ans -eq $this.return_values.pulled) {
-                    continue
-                }
-                elseif ($this._menues.backr.text -eq $ans) {
-                    continue
-                }
-                else {
-                    return $ans
-                }
-            }
-            elseif ($this._menues.del_image.text -eq $ans) {
-                $this.delete_images($images)
-                continue
-            }
-            else {
-                return $ans
-            }
-        } while ($true)
-        
-    return $null
-    }
-
-    [pscustomobject] select_image([System.Collections.ArrayList] $images) {
-        # Return one image from the list according to user choice
-        $cols = $($this.image_keys.Values)
-        $menue = $this.dialog_menue($this.dialogs.images)
-        $title = "List of software versions that have been downloaded."
-        return $this.select_from_list($images, $cols, $menue, $title)
-    }
-
-    [pscustomobject] pull_images() {
-        # Return the Image for which a new container should be started
-        Write-Verbose "Entering: pull images"
-        do {
-            $repo = $this.select_repo()
-            if ($repo -eq $null) {
-                return $null
-            }
-            if ($this._menues.backr.text -eq $repo) {
-                Write-Verbose "Repo cmd $($repo | Out-String)"
-                return $repo
-            }
-            $tag = $this.select_tag($repo)
-            if ($tag -eq $null) {
-                return $null
-            }
-            if ($this._menues.backt.text -eq $tag) {
-                Write-Verbose "Tag cmd $($tag | Out-String)"
-                continue
-            }
-            $this.pull_image($repo, $tag)
-            $this._images = $null
-            return $this.return_values.pulled
-        } while ($true)
-        return $null
-    }
-
-    [void] delete_images([System.Collections.ArrayList] $images) {
-        # Return a list of images that should be deleted
-        $proj_name = $this._proj_name
-        $description = "${proj_name} Docker Guide: List of software that have been used formerly. Please select the lines you want to remove!"
-        $cols = $($this.image_keys.Values)
-        $view = @(echo $images | select $cols)
-        $list = $this.show_dialog($view, $description, $this.select_mode.multiple)
-        if (-not $list) {
-            return
-        }
-        foreach ($i in $list) {
-            Write-Verbose "Delete $($i | Out-String)"
-            $this.delete_image($i)
-        } 
-        return
-    }
-
-    ####################################################################
-    # Methods to choose a container
-    ####################################################################
-    [System.Collections.ArrayList] find_containers() {
-        # Find all containers
-        return $this.find_containers($false)
-    }
-
-    [System.Collections.ArrayList] find_containers([bool] $refresh) {
-        # Find all containers
-        if ($this._containers -and -not $refresh) {
-            return $this._containers
-        }
-        $lines = $this.docker("ps -a --format json")
-        Write-Verbose "docker ps: $($lines | Out-String)"
-        $this._containers = [System.Collections.ArrayList]@(foreach ($line in $lines) {
-            $json = $line | ConvertFrom-Json
-            $json
-        })
-        Write-Verbose "Containers found: $($this._containers | Out-String)"
-        return $this._containers
-    }
-
-    [System.Collections.ArrayList] find_proj_containers() {
-        # Filter the list of containers for the project
-        return $this.find_proj_containers($false)
-    }
-
-    [System.Collections.ArrayList] find_proj_containers([bool] $matching) {
-        # Filter the list of containers for the project
-        $proj_containers = [System.Collections.ArrayList]@()
-        if (-not $this._containers) {
-            $this.find_containers()
-        }
-        foreach ($c in $this._containers) {
-            $this.get_container_port($c)
-            $cim = $c.($this.container_keys.image)
-            $ci = $cim -split ":" # cut off the tag
-            $img = $ci[0]
-            if ($this.check_proj_image($img)) {
-                $cn =  $c.($this.container_keys.name)
-                if ($matching -and -not $cn.Contains($this._path_prefix)) {
-                    Write-Verbose "Container ${cim} does not match $($this._path_prefix)"
-                    continue
-                }
-                $proj_containers.Add($c) | Out-Null
-            }
-        }
-        return $proj_containers
-    }
-
-    [int] get_container_port([pscustomobject] $c) {
-        $ports = $c.Ports
-        if ($ports -eq "") {
-            return 0
-        }
-        Write-Verbose "Ports ${ports}"
-        if ($ports -match ":([0-9]*)-" -eq $true) {
-            $m = get_matches
-            Write-Verbose "match $($m | Out-String), $($m.Count)"
-            $p = [int] $m[1]
-            $cn = $c.($this.container_keys.name)
-            Write-Verbose "port for ${cn}: $($p)"
-            $this._port_maps[$cn] = $p
-            return $p
-        }
-        return 0
-    }
-
-    [int] find_free_port([string] $start_port) {
-        $s = [int] $start_port
-        $p = $s
-        foreach ($c in $this._containers) {
-           $app = $this.container_to_app($c)
-           if ($app -and $app.port -eq $s) {
-               $p += 1
-           }
-        }
-        Write-Verbose "Free port ${p} found for $($start_port)"
-        return $p
-    }
-
-    [pscustomobject] choose_container() {
-        # Return the Container that should be started
-        Write-Verbose "Entering: choose container"
-        $matching_containers = $this.find_proj_containers($true)
-        $l = $matching_containers.Count
-        if ($l -eq 0) {
-            $containers = $this.find_proj_containers()
-            $k = $containers.Count
-            if (-not $k) {
-                $img = $this.choose_image()
-                if ($img -eq $null) {
-                    return $null
-                }
-                $this.create_container($img)
-                return $this.return_values.created
-            }
-            else {
-                Write-Host "No session belongs to the current directory $($this._path)!"
-                return $this.select_container($containers)
-            }
-        }
-        else {
-            return $this.select_container($matching_containers)
-        }
-    }
-
-    [pscustomobject] select_container([System.Collections.ArrayList] $containers) {
-        # Return one container from the list according to user choice
-        $cols = $($this.container_keys.Values)
-        $menue =  $this.dialog_menue($this.dialogs.containers)
-        $title = "List of sessions that have been used or created formerly."
-        return $this.select_from_list($containers, $cols, $menue, $title)
-    }
-
-    [void] delete_containers([System.Collections.ArrayList] $containers, [string] $purpose) {
-        # Return a list of containers that should be deleted
-        $proj_name = $this._proj_name
-        $description = "${proj_name} Docker Guide: ${purpose}Please select the lines you want to remove!"
-        $cols = $($this.container_keys.Values)
-        $view = @(echo $containers | select $cols)
-        $list = $this.show_dialog($view, $description, $this.select_mode.multiple)
-        if (-not $list) {
-            return
-        }
-        foreach ($c in $list) {
-            Write-Verbose "Delete $($c | Out-String)"
-            $this.delete_container($c)
-        } 
-        return
-    }
-
-    ####################################################################
-    # Methods that directly access Docker
-    ####################################################################
-    [string] docker_str([string] $arguments) {
+    [string] bash_str([string] $bash_cmd) {
         $d = $this._wsl_distro
         if ($d) {
-            $cmd = "wsl -d $d -e docker $arguments"
+            return "wsl -d $d -- $bash_cmd"
         }
         else {
-            $cmd = "docker $arguments"
+            return $bash_cmd
         }
+    }
+
+    [pscustomobject] bash([string] $bash_cmd) {
+        $cmd = $this.bash_str($bash_cmd)
+        Write-Verbose "Invoke bash with: $cmd"
+        return Invoke-Expression $cmd
+    }
+
+    [void] run_in_terminal([string] $cmd) {
+        if ($this._linux) {
+            Write-Verbose "Run command $cmd in terminal"
+            Invoke-Expression "cmd $cmd"
+            # asuming ~/bin/cmd is something like mate-terminal -t ${!#} -- bash -c '"$@"' -- "$@"
+        }
+        else {
+            $argu = "/c " + $cmd
+            Write-Verbose "Run command $argu in terminal"
+            Start-Process -FilePath cmd -ArgumentList $argu -Wait
+        }
+    }
+
+    [string] docker_str([string] $arguments) {
+        $bash_cmd = "docker $arguments"
+        $cmd = $this.bash_str($bash_cmd)
         Write-Verbose "Command to call Docker: $cmd"
         return $cmd
     }
@@ -828,10 +481,20 @@ class ProjectsDockerGuide : DockerGuideBase {
             Write-Verbose "Starting Docker Desktop with $cmd"
         }
         elseif ($d.StartsWith($def)) {
-            # default distro
-            wsl -d $d -e sh /root/start_dockerd
+            $d_vers = $d.Split('-')[1] # version part
+            if ($d_vers -ge "0.3") {
+                # default distro Ubuntu
+                Start-Job -ArgumentList $d -ScriptBlock {
+                    param($d)
+                    wsl -d $d -e sh -c "sudo dockerd"
+                }
+            }
+            else {
+                # default distro Alpine
+                wsl -d $d -e sh /root/start_dockerd
+            }
             Write-Verbose "Starting Docker daemon in default WSL-distro $d"
-        }
+	}
         else {
             # others with fingers crossed
             Write-Host "Your admin authentication is needed to start the Docker daemon!"
@@ -873,15 +536,21 @@ class ProjectsDockerGuide : DockerGuideBase {
                 $docker_desktop = $d
                 $docker_distros += $d
                 continue
-            }              
+            }
             elseif ($d.StartsWith($def)) {
                 Write-Verbose "$def is present: $d"
-                $default = $d
+                if ($d -eq $this._default_distro) {
+                    $default = $d
+                }
+                elseif ($default -eq $null) {
+                    $default = $d
+                }
                 $docker_distros += $d
                 continue
             }
             else {
                 $test_distro = wsl -d $d -e docker info
+                if ($test_distro -eq $null) { continue }
                 Write-Verbose "Test WSL distro $d gives '$test_distro'"
                 if ($test_distro.StartsWith('Client')) {
                     $distro = $d
@@ -916,8 +585,7 @@ class ProjectsDockerGuide : DockerGuideBase {
             if ($default) {
                 $distro = $default
             }
-            else
-            {
+            else {
                 $answer = $this.select_wsl_distro($docker_distros)
                 if (-not $answer) {return $false}
                 if ($answer -eq $this._menues.install.text) {
@@ -984,19 +652,535 @@ class ProjectsDockerGuide : DockerGuideBase {
         return $true
     }
 
+    ####################################################################################
+    # Data structure navigation
+    ####################################################################################
+    [DockerGuideRepo] image_to_repo([pscustomobject] $image) {
+        Write-Verbose "Entering image_to_repo for $($image | Out-String)"
+        $repo = $image.($this.image_keys.repo)
+        $rep = $repo.Split("/")
+        $user = $rep[0]
+        $name = $rep[1]
+        foreach ($r in $this._proj_repositories) {
+            if ($r.user -eq $user -and $r.name -eq $name) {
+                Write-Verbose "Leaving image_to_repo for $($image | Out-String) with $($r | Out-String)"
+                return $r
+            }
+        }
+        Write-Verbose "Leaving image_to_repo for $($image | Out-String) without result"
+        return $null
+    }
+
+    [System.Collections.ArrayList] image_to_apps([pscustomobject] $image) {
+        Write-Verbose "Entering image_to_apps for $($image | Out-String)"
+        $repo = $this.image_to_repo($image)
+        $apps = $repo.apps
+        if ($apps.Count -eq 0) {
+            $apps = @([DockerGuideApp]::new("Default", "X-", 0, "", 0))
+        }
+        Write-Verbose "Leaving image_to_apps for $($image | Out-String) with $($apps | Out-String)"
+        return $apps
+    }
+
+    [pscustomobject] container_to_image([pscustomobject] $container) {
+        Write-Verbose "Entering container_to_image for $($container | Out-String)"
+        $img = $container.($this.container_keys.image)
+        $imgs = $this.find_images()
+        foreach ($i in $imgs) {
+            $repo = $i.($this.image_keys.repo)
+            $tag = $i.($this.image_keys.tag)
+            if ($img -eq "${repo}:${tag}") {
+                Write-Verbose "Leaving container_to_image for $($container | Out-String) with $($i | Out-String)"
+                return $i
+            }
+        }
+        Write-Verbose "Leaving container_to_image for $($container | Out-String) without result"
+        return $null
+    }
+
+    [DockerGuideApp] container_to_app([pscustomobject] $container) {
+        Write-Verbose "Entering container_to_app for $($container | Out-String)"
+        $img = $this.container_to_image($container)
+        if (-not $img) {return $null}
+        $apps = $this.image_to_apps($img)
+        if ($apps.Count -gt 1) {
+            $name = $container.($this.container_keys.name)
+            foreach ($app in $apps) {
+                if ($name.StartsWith($app.Prefix)) {
+                    Write-Verbose "Leaving container_to_image for $($container | Out-String) with $($app | Out-String)"
+                    return $app
+                }
+            }
+        }
+        $app = $apps[0]
+        Write-Verbose "Leaving container_to_image for $($container | Out-String) with default $($app | Out-String)"
+        return $app
+    }
+
+    [pscustomobject] container_to_appimage_job([pscustomobject] $cont) {
+        $id = $($cont.($this.container_keys.id))
+        if ($id.Contains("-")) {
+            $job_id = ($id -split "-")[1]
+            $job = Get-Job -Id $job_id
+            Write-Verbose "AppImage container $id has job $($job | Out-String)"
+	    return $job
+	}
+	return $null
+    }
+
+    [pscustomobject] id_to_image([string] $id) {
+       $images =  $this.find_images()
+       foreach ($image in $images) {
+           if ($id -eq $($image.($this.image_keys.id))) {
+               Write-Verbose "Found $($image | Out-String) to id $id"
+               return $image
+           }
+       }
+       return $null
+    }
+
+    [pscustomobject] prefix_to_app([string] $prefix, [pscustomobject] $image) {
+       $apps = $this.image_to_apps($image)
+       foreach ($app in $apps) {
+           if ($prefix -eq $app.Prefix) {
+               Write-Verbose "Found $($app | Out-String) to prefix $prefix and image_id $($image.($this.image_keys.id))"
+               return $app
+           }
+       }
+       return $null
+    }
+
+    [bool] is_appimage([pscustomobject] $image) {
+        $repo = $this.image_to_repo($image)
+        return $repo.host -eq [RepoHost]::github
+    }
+
+    [bool] is_appimage_container([pscustomobject] $cont) {
+        $image = $this.container_to_image($cont)
+        return $this.is_appimage($image)
+    }
+
+    [pscustomobject] appimage_file_to_image([pscustomobject] $file) {
+        $filename = $file.Name
+        $created = $file.CreationTime.ToString("yyyy-MM-dd  hh:mm:ss")
+        $size = [Math]::Round($file.Length / 1GB, 2)
+        $name, $user, $repo, $id, $rem = $filename -split "_\+_"
+        $id = ($id -split "\.")[0]
+        $img = [pscustomobject] @{
+            $this.image_keys.id = $id
+            $this.image_keys.tag = $name -replace '__', ' '
+            $this.image_keys.repo = "$user/$repo"
+            $this.image_keys.created = $created
+            $this.image_keys.size = $size
+        }
+        $this._appimage_filenames[$id] = $filename
+        return $img
+    }
+
+    [string] tag_to_appimage_filename([pscustomobject] $tag) {
+        $tagc = $this._tags[$tag.id]
+	$name = "$($tag.name)" -replace ' ', '__'
+        return "${name}_+_$($tagc.user)_+_$($tagc.repo)_+_$($tag.id).AppImage"
+    }
+
+    [pscustomobject] appimage_job_to_image_and_app([pscustomobject] $job) {
+        $app_prefix, $image_id = $job.Name -split "-"
+        $app_prefix += "-"
+        Write-Verbose "AppImage job $($job.id) belongs to image ${image_id} and app ${app_prefix}"
+        $image = $this.id_to_image($image_id)
+        if ($image -eq $null) {
+            return $null
+        }
+        $app = $this.prefix_to_app($app_prefix, $image)
+        return @($image, $app)
+    }
+
+    [pscustomobject] appimage_job_to_container([pscustomobject] $job) {
+        $image_and_app = $this.appimage_job_to_image_and_app($job)
+        if ($image_and_app -eq $null) {
+            return $null
+        }
+        $image, $app = $image_and_app
+        $container = [pscustomobject] @{
+            $this.container_keys.id = "$($image.($this.image_keys.id))-$($job.id)"
+            $this.container_keys.name = "$($app.Prefix)$($image.($this.image_keys.tag))-$($job.id)"
+            $this.container_keys.image = "$($image.($this.image_keys.repo)):$($image.($this.image_keys.tag))"
+            $this.container_keys.created = $job.PSBeginTime
+            $this.container_keys.status = $job.State
+        }
+        return $container
+    }
+
+    ##############################################################################
+    # Search tags
+    ##############################################################################
+    [System.Collections.ArrayList] search_tags([pscustomobject] $repo) {
+        if ($repo.host -eq [RepoHost]::github) {
+            return $this.search_github_tags($repo)
+        }
+        else {
+            return $this.search_docker_tags($repo)
+        }
+    }
+
+    [System.Collections.ArrayList] search_docker_tags([pscustomobject] $repo) {
+        # search tags for the given repository on Docker Hub
+        $uri = "https://registry.hub.docker.com/v2/repositories/$($repo.user)/$($repo.name)/tags/?page_size=250"
+        Write-Verbose "Invoke-WebRequest ${uri}"
+        $result = Invoke-WebRequest -UseBasicParsing -Uri $uri
+        $JsonObject = ConvertFrom-Json -InputObject $result.Content
+        $res = $JsonObject.results
+        # filter the result
+        $new_res = @()
+        foreach ($tag in $res) {
+            if ($tag.name.Contains('latest') -or $tag.name.Contains('develop')) {
+                continue
+            }
+            $this._tags[$tag.id] = $tag
+            if ($repo.filter -eq [TagFilterValues]::pre) {
+                if ($tag.name.Contains('beta') -or $tag.name.Contains('rc')) {
+                    $new_res += $tag
+                }
+            }
+            elseif ($repo.filter -eq [TagFilterValues]::stable) {
+                if (-not ($tag.name.Contains('beta') -or $tag.name.Contains('rc'))) {
+                    $new_res += $tag
+                }
+            }
+            else {
+                $new_res += $tag
+            }
+        }
+        return $new_res
+    }
+
+    [System.Collections.ArrayList] search_github_tags([pscustomobject] $repo) {
+        # search tags for AppImages
+        $uri = "https://api.github.com/repos/$($repo.user)/$($repo.name)/releases"
+        $headers = @{
+            "Accept" = "application/vnd.github.v3+json"
+            "User-Agent" = "PowerShell-GitHubReleaseDownloader"
+        }
+        Write-Verbose "Invoke-RestMethod ${uri}"
+        $res = @()
+        $releases = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
+        foreach ($release in $releases) {
+            $assets_url = $release.assets_url
+            $assets = Invoke-RestMethod -Uri $assets_url -Headers $headers -Method Get
+            $download = $assets.browser_download_url
+            $ext = ($download -split "\.")[-1]
+            if ($ext -ne 'AppImage') {
+                Write-Verbose "Download file $download with extension $ext ignored!"
+                continue
+            }
+            $tag = [pscustomobject] @{
+                $this.tag_keys.name = $release.name
+                $this.tag_keys.id = $release.id
+                $this.tag_keys.updated = $assets.updated_at
+                $this.tag_keys.full_size = $assets.size
+                $this.appimage_keys.tag = $release.tag_name
+                $this.appimage_keys.created = $assets.created_at
+                $this.appimage_keys.download_url = $download
+                $this.appimage_keys.user = $repo.user
+                $this.appimage_keys.repo = $repo.name
+            }
+            $this._tags[$tag.id] = $tag
+            $res += $tag
+            Write-Verbose "RestMethod tag $($tag | Out-String)"
+        }
+        Write-Verbose "RestMethod result $($res  | Out-String)"
+        return $res
+    }
+
+    #########################################################################
+    # User selections
+    #########################################################################
+    [pscustomobject] select_from_list([System.Collections.ArrayList] $items,
+                                      [System.Collections.ArrayList] $cols,
+                                      [System.Collections.ArrayList] $menue,
+                                      [string] $title
+                                     ) {
+        # Return one image from the list according to user choice
+        $app_name = $this._app_name
+        Write-Verbose "Entering: select_from_list $title"
+        $description = "${app_name}: $title Please select the line of your choice!"
+        $view = @(echo $items | select $cols)
+        $mkeys = @()
+        foreach ($m in $menue) {
+            if ($cols.Count -eq 0) {
+                $view += $m
+                continue
+            }
+            $mline = echo @($items[0]) | select $cols  # copy of first line
+            foreach ($key in $cols) {
+                if ($cols.IndexOf($key) -eq 0) {
+                    $mline.$key = $m
+                    $mkeys += $key
+                }
+                else {
+                    $mline.$key = ""
+                }
+            }
+            $view += $mline
+        }
+        Write-Verbose "mkeys $($mkeys | Out-String)"
+        $ans = $this.show_dialog($view, $description, $this.select_mode.single)
+        if (-not $ans) {
+            Write-Verbose "select_from_list $title canceled"
+            return $null
+        }
+        else {
+            foreach ($m in $menue) {
+                $ind = $menue.IndexOf($m)
+                $col = $mkeys[$ind]
+                if ($ans.$col -eq $m) {
+                    Write-Verbose "Leaving: select_from_list $title with $m"
+                    return $m
+                }
+            }
+        }
+        Write-Verbose "Leaving: select_from_list $title with $ans"
+        return $ans
+    }
+
+    [DockerGuideApp] select_app($apps) {
+        # Return one tag from the repository
+        $title = "List of different applications to work with $($this._proj_name)."
+        $app_names = $apps[0].psobject.Properties.Name
+        $cols = @($app_names[0], $app_names[1])
+        $view = @(echo $apps | select $cols)
+        $description = "$($this._app_name): $title Please select the line of your choice!"
+        $ans = $this.show_dialog($view, $description, $this.select_mode.single)
+        foreach ($app in $apps) {
+            if ($app.Name -eq $ans.Name) {
+                Write-Verbose "Selected app: $($app | Out-String)"
+                return $app
+            }
+        }
+        Write-Verbose "No Selection $($ans | Out-String)"
+        return $null
+    }
+
+    [pscustomobject] select_wsl_distro($distros) {
+        # Return wsl distribution
+        $menue = $this.dialog_menue($this.dialogs.distros)
+        $title = "List of WSL distros that have Docker available."
+        return $this.select_from_list($distros, @(), $menue, $title)
+    }
+
+    [pscustomobject] select_repo() {
+        # Return a repository
+        $repos = $this._proj_repositories
+        $cols = $repos[0].psobject.properties.name
+        $menue = $this.dialog_menue($this.dialogs.repos)
+        $title = "List of software that can be downloaded."
+        return $this.select_from_list($repos, $cols, $menue, $title)
+    }
+
+    [pscustomobject] select_tag([pscustomobject] $repo) {
+        # Return one tag from a repository
+        $tags = $this.search_tags($repo)
+        $cols = $($this.tag_keys.Values)
+        $menue = $this.dialog_menue($this.dialogs.tags)
+        $title = "List of software versions that can be downloaded."
+        return $this.select_from_list($tags, $cols, $menue, $title)
+    }
+
+    [pscustomobject] select_image([System.Collections.ArrayList] $images) {
+        # Return one image from the list according to user choice
+        $cols = $($this.image_keys.Values)
+        $menue = $this.dialog_menue($this.dialogs.images)
+        $title = "List of software versions that have been downloaded."
+        return $this.select_from_list($images, $cols, $menue, $title)
+    }
+
+    [pscustomobject] select_container([System.Collections.ArrayList] $containers) {
+        # Return one container from the list according to user choice
+        $cols = $($this.container_keys.Values)
+        $menue =  $this.dialog_menue($this.dialogs.containers)
+        $title = "List of sessions that have been used or created formerly."
+        return $this.select_from_list($containers, $cols, $menue, $title)
+    }
+
+    ####################################################################
+    # Methods to choose and operate on an image
+    ####################################################################
+    [System.Collections.ArrayList] find_images() {
+        if ($this._images) {
+            return $this._images
+        }
+        if ($this.docker_daemon_needed()) {
+            $lines = $this.docker("images --format json")
+            Write-Verbose "docker images: $($lines | Out-String)"
+            $this._images = [System.Collections.ArrayList]@(foreach ($line in $lines) {
+                $json = $line | ConvertFrom-Json
+                $json
+            })
+            Write-Verbose "Docker images found: $($this._images | Out-String)"
+        }
+        else {
+            $this._images = @()
+        }
+        if (os_is_linux) {
+            $path = "~/bin/*.AppImage"
+        } else {
+            $path = "\\wsl$\$($this._wsl_distro)\home\pwsh\bin\*.AppImage"
+        }
+        foreach ($i in Get-ChildItem -Path $path -File) {
+            $img = $this.appimage_file_to_image($i)
+            $this._images += $img
+            Write-Verbose "AppImage appended: $($img | Out-String)"
+        }
+        return $this._images
+    }
+
+    [System.Collections.ArrayList] find_proj_images() {
+        # Filter the list of containers for the project
+        $proj_images = [System.Collections.ArrayList]@()
+        if (-not $this._images) {
+            $this.find_images()
+        }
+        foreach ($i in $this._images) {
+        $irep = $i.($this.image_keys.repo)
+            if ($this.check_proj_image($irep)) {
+                $proj_images.Add($i) | Out-Null
+            }
+        }
+        return $proj_images
+    }
+
+    [pscustomobject] choose_image() {
+        # Return the Image for which a new container should be started
+        Write-Verbose "Entering choose image"
+        do {
+            $images = $this.find_proj_images()
+            $i = $images.Count
+            if ($i -eq 0) {
+                $ans = $this.pull_images()
+                if ($ans -eq $this.return_values.pulled) {
+                    continue
+                }
+                elseif ($this._menues.backr.text -eq $ans) {
+                    continue
+                }
+                else {
+                    return $ans
+                }
+            }
+            $ans = $this.select_image($images)
+
+            if ($this._menues.download.text -eq $ans) {
+                $ans = $this.pull_images()
+                if ($ans -eq $this.return_values.pulled) {
+                    continue
+                }
+                elseif ($this._menues.backr.text -eq $ans) {
+                    continue
+                }
+                else {
+                    return $ans
+                }
+            }
+            elseif ($this._menues.del_image.text -eq $ans) {
+                $this.delete_images($images)
+                continue
+            }
+            else {
+                return $ans
+            }
+        } while ($true)
+        
+    return $null
+    }
+
+    [pscustomobject] pull_images() {
+        # Return the Image for which a new container should be started
+        Write-Verbose "Entering: pull images"
+        do {
+            $repo = $this.select_repo()
+            if ($repo -eq $null) {
+                return $null
+            }
+            if ($this._menues.backr.text -eq $repo) {
+                Write-Verbose "Repo cmd $($repo | Out-String)"
+                return $repo
+            }
+            $tag = $this.select_tag($repo)
+            if ($tag -eq $null) {
+                return $null
+            }
+            if ($this._menues.backt.text -eq $tag) {
+                Write-Verbose "Tag cmd $($tag | Out-String)"
+                continue
+            }
+            $this.pull_image($repo, $tag)
+            $this._images = $null
+            return $this.return_values.pulled
+        } while ($true)
+        return $null
+    }
+
     [void] pull_image([pscustomobject] $repo, [pscustomobject] $tag) {
         # pull image
+        if ($repo.host -eq [RepoHost]::github) {
+            $this.pull_appimage($repo, $tag)
+        }
+        else {
+            $this.pull_docker_image($repo, $tag)
+        }
+    }
+
+    [void] pull_docker_image([pscustomobject] $repo, [pscustomobject] $tag) {
+        # pull docker image
         $ruser = $repo.user
         $rname = $repo.name
         $tname = $tag.($this.tag_keys.name)
         $name = "${ruser}/${rname}:${tname}"
         Write-Host "Download of ${name} starts!"
         $cmd = $this.docker_str("pull $($name)")
-        $argu = "/c " + $cmd
-        Write-Verbose "docker pull: ${argu}"
+        Write-Verbose "docker pull: ${cmd}"
         journal_message "before $cmd"
-        Start-Process -FilePath cmd -ArgumentList $argu -Wait
+        $this.run_in_terminal($cmd)
         journal_message "after $cmd"
+    }
+
+    [void] pull_appimage([pscustomobject] $repo, [pscustomobject] $tag) {
+        # pull appimage
+        $tagc = $this._tags[$tag.id]
+        $url = $tagc.download_url
+        $name = $this.tag_to_appimage_filename($tag)
+        $d = $this._wsl_distro
+        $cmd = $this.bash_str("~/bin/install_appimage.sh $url $name")
+        Write-Verbose "download AppImage: ${cmd}"
+        journal_message "before $cmd"
+        $this.run_in_terminal($cmd)
+        journal_message "after $cmd"
+    }
+
+    [void] delete_images([System.Collections.ArrayList] $images) {
+        # Return a list of images that should be deleted
+        $app_name = $this._app_name
+        $description = "${app_name}: List of software that have been used formerly. Please select the lines you want to remove!"
+        $cols = $($this.image_keys.Values)
+        $view = @(echo $images | select $cols)
+        $list = $this.show_dialog($view, $description, $this.select_mode.multiple)
+        if (-not $list) {
+            return
+        }
+        foreach ($i in $list) {
+            Write-Verbose "Delete $($i | Out-String)"
+            $this.delete_image($i)
+        } 
+        return
+    }
+
+    [void] remove_image([pscustomobject] $i, [string] $name) {
+        if ($this.is_appimage($i)) {
+            $cmd = "rm ~/bin/*$($i.($this.image_keys.id)).AppImage"
+            $this.bash($cmd)
+        } else {
+            $this.docker("rmi ${name}")
+        }
     }
 
     [void] delete_image([pscustomobject] $i) {
@@ -1008,13 +1192,13 @@ class ProjectsDockerGuide : DockerGuideBase {
         $cont_to_delete = @()
         foreach ($c in $this._containers) {
             if ($c.($this.container_keys.image) -eq $name) {
-            $cont_to_delete += $c
+                $cont_to_delete += $c
             }
         }
         Write-Verbose "cont_to_delete $($cont_to_delete | Out-String)"
         if ($cont_to_delete.Count -eq 0) {
             journal_message "before deleting ${name}"
-            $this.docker("rmi ${name}")
+            $this.remove_image($i, $name)
             journal_message "after deleting ${name}"
             Write-Host "The software ${name} has been deleted!"
             # remove it from the list
@@ -1025,6 +1209,148 @@ class ProjectsDockerGuide : DockerGuideBase {
             Write-Host "There are containers for ${name} which must be deleted first!"
             $this.delete_containers($cont_to_delete, "List of sessions that must be deleted, to delete ${name}. ")
         }
+    }
+
+    ####################################################################
+    # Methods to choose and operate on a container
+    ####################################################################
+    [void] reset_containers() {
+        $this._containers = $null
+    }
+
+    [System.Collections.ArrayList] find_containers() {
+        # Find all containers
+        if ($this._containers) {
+            return $this._containers
+        }
+        if ($this.docker_daemon_needed()) {
+            $lines = $this.docker("ps -a --format json")
+            Write-Verbose "docker ps: $($lines | Out-String)"
+            $this._containers = [System.Collections.ArrayList]@(foreach ($line in $lines) {
+                $json = $line | ConvertFrom-Json
+                $json
+            })
+            Write-Verbose "Docker containers found: $($this._containers | Out-String)"
+	}
+        else {
+            $this._containers = @()
+        }
+        $jobs = Get-Job
+        foreach ($job in $jobs) {
+            $c = $this.appimage_job_to_container($job)
+            if ($c -ne $null) {
+                $this._containers += $c
+                Write-Verbose "AppImage job $($job | Out-String) added as container: $($c | Out-String)"
+            }
+        }
+        return $this._containers
+    }
+
+    [System.Collections.ArrayList] find_proj_containers() {
+        # Filter the list of containers for the project
+        return $this.find_proj_containers($false)
+    }
+
+    [System.Collections.ArrayList] find_proj_containers([bool] $matching) {
+        # Filter the list of containers for the project
+        $proj_containers = [System.Collections.ArrayList]@()
+        if (-not $this._containers) {
+            $this.find_containers()
+        }
+        foreach ($c in $this._containers) {
+            $this.get_container_port($c)
+            $cim = $c.($this.container_keys.image)
+            if ($this.is_appimage_container($c)) {
+                # these match since created here
+                $proj_containers.Add($c) | Out-Null
+                continue
+            }
+            $ci = $cim -split ":" # cut off the tag
+            $img = $ci[0]
+            if ($this.check_proj_image($img)) {
+                $cn =  $c.($this.container_keys.name)
+                if ($matching -and -not $cn.Contains($this._path_prefix)) {
+                    Write-Verbose "Container ${cim} does not match $($this._path_prefix)"
+                    continue
+                }
+                $proj_containers.Add($c) | Out-Null
+            }
+        }
+        return $proj_containers
+    }
+
+    [int] get_container_port([pscustomobject] $c) {
+        $ports = $c.Ports
+        if ($ports -eq "") {
+            return 0
+        }
+        Write-Verbose "Ports ${ports}"
+        if ($ports -match ":([0-9]*)-" -eq $true) {
+            $m = get_matches
+            Write-Verbose "match $($m | Out-String), $($m.Count)"
+            $p = [int] $m[1]
+            $cn = $c.($this.container_keys.name)
+            Write-Verbose "port for ${cn}: $($p)"
+            $this._port_maps[$cn] = $p
+            return $p
+        }
+        return 0
+    }
+
+    [int] find_free_port([string] $start_port) {
+        $s = [int] $start_port
+        $p = $s
+        foreach ($c in $this._containers) {
+           $app = $this.container_to_app($c)
+           if ($app -and $app.port -eq $s) {
+               $p += 1
+           }
+        }
+        Write-Verbose "Free port ${p} found for $($start_port)"
+        return $p
+    }
+
+    [pscustomobject] choose_container() {
+        # Return the Container that should be started
+        Write-Verbose "Entering: choose container"
+        $matching_containers = $this.find_proj_containers($true)
+        $l = $matching_containers.Count
+        if ($l -eq 0) {
+            $containers = $this.find_proj_containers()
+            $k = $containers.Count
+            if (-not $k) {
+                $img = $this.choose_image()
+                if ($img -eq $null) {
+                    return $null
+                }
+                $this.operate_on_image($img)
+                return $this.return_values.created
+            }
+            else {
+                Write-Host "No session belongs to the current directory $($this._path)!"
+                return $this.select_container($containers)
+            }
+        }
+        else {
+            return $this.select_container($matching_containers)
+        }
+    }
+
+    [void] delete_containers([System.Collections.ArrayList] $containers, [string] $purpose) {
+        # Return a list of containers that should be deleted
+        $app_name = $this._app_name
+        $description = "${app_name}: ${purpose}Please select the lines you want to remove!"
+        $cols = $($this.container_keys.Values)
+        $view = @(echo $containers | select $cols)
+        $list = $this.show_dialog($view, $description, $this.select_mode.multiple)
+        if (-not $list) {
+            return
+        }
+        foreach ($c in $list) {
+            Write-Verbose "Delete $($c | Out-String)"
+            $this.delete_container($c)
+        } 
+        return
     }
 
     [string] find_new_container_name([DockerGuideApp] $app) {
@@ -1054,13 +1380,8 @@ class ProjectsDockerGuide : DockerGuideBase {
         return $name
     }
 
-    [void] create_container([pscustomobject] $image) {
-        # create a new container
-        $repo = $image.Repository
-        $tag = $image.Tag
-        Write-Host "Create a new container for ${repo}:${tag}"
-        $port = ""
-        $option = ""
+    [void] operate_on_image([pscustomobject] $image) {
+        # create a new container or launch an AppImage
         $apps = $this.image_to_apps($image)
         $app = $apps[0]
         if ($apps.Count -gt 1) {
@@ -1069,6 +1390,20 @@ class ProjectsDockerGuide : DockerGuideBase {
                 return
             }
         }
+        if ($this.is_appimage($image)) {
+            $this.launch_appimage($image, $app)
+	}
+	else {
+            $this.create_container($image, $app)
+	}
+    }
+
+    [void] create_container([pscustomobject] $image, [pscustomobject] $app) {
+        $repo = $image.Repository
+        $tag = $image.Tag
+        Write-Host "Create a new container for ${repo}:${tag}"
+        $port = ""
+        $option = ""
         $p = $this.find_free_port($app.port)
         if ($p -eq 0) {
             $port = ""
@@ -1087,26 +1422,88 @@ class ProjectsDockerGuide : DockerGuideBase {
         $this.docker("create -it --mount `"type=bind,src=$($spwd),target=$($tpwd)`" --name $($name) -w $($tpwd)$($port) $($repo):$($tag)$($option)")
         journal_message "after creating ${name}"
         $this._port_maps[$name] = $p
-        $this._containers = $null  # to refresh the list
+        $this.reset_containers()
+    }
+
+    [void] launch_appimage([pscustomobject] $image, [pscustomobject] $app) {
+        Write-Verbose "Launch $($image | Out-String)"
+        Write-Host "Launch the AppImage $($image.tag)"
+        $filename = $this._appimage_filenames[$image.id]
+        $opt = $app.option
+        $argu = $this.bash_str("~/bin/" + $filename)
+        $name = "$($app.Prefix)$($image.($this.image_keys.id))"
+        if ($opt -eq "") {
+            # launch IPython in terminal
+            Write-Verbose "Launch with cmd $argu"
+            if (os_is_linux) {
+                # asuming ~/bin/cmd is something like mate-terminal -t ${!#} -- bash -c '"$@"' -- "$@"
+                $job = Start-Job -Name $name -ArgumentList $argu -ScriptBlock {param($argu); Invoke-Expression "cmd $argu"}
+            }
+            else {
+                $argu = "/c title $filename &&" + $argu
+                $job = Start-Job -Name $name -ArgumentList $argu -ScriptBlock {param($argu);  Start-Process -FilePath cmd -ArgumentList $argu}
+            }
+        } else {
+            $argu += " " + $opt
+            Write-Verbose "Start Job with cmd $argu"
+            $job = Start-Job -Name $name -ArgumentList $argu -ScriptBlock {param($argu); Invoke-Expression $argu}
+        }
+        $this.reset_containers()
+    }
+
+    [void] restart_appimage_job([pscustomobject] $c) {
+        $job = $this.container_to_appimage_job($c)
+        Write-Verbose "AppImage job $($job.Name) selected"
+        if ($job -ne $null) {
+            if ($job.State -eq [JobState]::Running) {
+                # This happens if the applications runs in background as
+                # kernel for a Jupyter notebook or lab.
+                Write-Verbose "AppImage job $($job.Name) is running"
+                $text = "The choosen session is already running. Please look at your browser for a tab named Home or Jupyterlab!"
+                $this.popup_message($text, $this.buttons.ok, $this.icons.information)
+            } elseif ($job.State -eq [JobState]::Completed) {
+                # This happens if the applications runs in a Bash terminal.
+                Write-Verbose "AppImage job $($job.Name) is running in a Bash terminal"
+                $name = $c.($this.container_keys.name)
+                $text = "The choosen session is already running. Please look for a command line terminal named like $name!"
+                $this.popup_message($text, $this.buttons.ok, $this.icons.information)
+            } else {
+                Write-Verbose "AppImage job $($job.Name) is not running"
+                $text = "The choosen session is $($job.State). Do you want to restart it?"
+                $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
+                if ($answer -eq $this.button_pressed.yes) {
+                    $image, $app = $this.appimage_job_to_image_and_app($job)
+                    $this.delete_container($c)
+                    $this.launch_appimage($image, $app)
+                }
+            }
+            continue
+        }
+        else {
+            Write-Verbose "No Job found for container"
+        }
     }
 
     [void] delete_container([pscustomobject] $c) {
-        # delete a container
         $id = $c.($this.container_keys.id)
         $name = $c.($this.container_keys.name)
         Write-Host "Delete container ${name} (id ${id})"
         journal_message "before deleting ${name} (id ${id})"
-        $this.docker("stop ${id}")
-        $this.docker("rm ${id}")
+        if ($this.is_appimage_container($c)) {
+            $job = $this.container_to_appimage_job($c)
+            Remove-Job -Job $job -Force
+        } else {
+            $this.docker("stop ${id}")
+            $this.docker("rm ${id}")
+        }
         journal_message "after deleting ${name} (id ${id})"
         # remove it from the list
         $this._containers = @($this._containers | Where-Object {$id -ne $_.($this.container_keys.id)})
         Write-Verbose "Containers Count $($this._containers.Count)"
     }
 
-    [void] attach_container() {
+    [void] attach_container($c) {
         # attach to an existing container
-        $c = $this._container
         $id = $c.($this.container_keys.id)
         $name = $c.($this.container_keys.name)
         $app = $this.container_to_app($c)
@@ -1146,14 +1543,8 @@ class ProjectsDockerGuide : DockerGuideBase {
         }
         else {
             $cmd = $this.docker_str("attach $($id)")
-            if ($this._linux) {
-                $argu = "-x " + $cmd
-            }
-            else {
-                $argu = "/c " + $cmd
-            }
-            Write-Verbose "docker attach: ${argu}"
-            Start-Process -FilePath cmd -ArgumentList $argu -Wait
+            Write-Verbose "docker attach: ${cmd}"
+            $this.run_in_terminal($cmd)
         }
     }
 
@@ -1167,32 +1558,35 @@ class ProjectsDockerGuide : DockerGuideBase {
             return
         }
         do {
-            $this._container = $this.choose_container()
-            Write-Verbose "Container Choice: $($this._container | Out-String)"
-            if ($this._container -eq $this.return_values.created) {
-                Write-Verbose "Just created a conrainer, now search it."
+            $c = $this.choose_container()
+            Write-Verbose "Container choice: $($c | Out-String)"
+            if ($c -eq $this.return_values.created) {
+                Write-Verbose "Just created a container, now search it."
                 continue
             }
-            elseif ($this._menues.create.text -eq $this._container) {
+            elseif ($this._menues.create.text -eq $c) {
                 $image = $this.choose_image()
                 if ($image -ne $null) {
-                    $this.create_container($image)
+                    $this.operate_on_image($image)
                 }
                 Write-Verbose "Just created a container here, now search it."
                 continue
             }
-            elseif ($this._menues.del_container.text -eq $this._container) {
+            elseif ($this._menues.del_container.text -eq $c) {
                 $this.delete_containers($this._containers, "List of sessions that have been used formerly. ")
                 Write-Verbose "After deletion of containsers, now search again."
                 continue
             }
-            elseif ($this._container -eq $null) {
+            elseif ($c -eq $null) {
                 Write-Verbose "No container chosen, now finish."
                 Write-Host "Good bye!"
                 return
             }
-            elseif (-not $($this._container.($this.container_keys.name)).Contains($this._path_prefix)) {
-                $c = $this._container
+            elseif ($this.is_appimage_container($c)) {
+                $this.restart_appimage_job($c)
+                continue
+            }
+            elseif (-not $($c.($this.container_keys.name)).Contains($this._path_prefix)) {
                 Write-Verbose "$($c.Names) does not contain $($this._path_prefix)"
                 $text = "The choosen session does not belong to the current folder $($this._path)! Start in anyway?"
                 $answer = $this.popup_message($text, $this.buttons.yes_no, $this.icons.information)
@@ -1200,7 +1594,7 @@ class ProjectsDockerGuide : DockerGuideBase {
                     continue
                 }
             }
-            $this.attach_container()
+            $this.attach_container($c)
         } while ($true)
     }
 }
@@ -1211,12 +1605,12 @@ class ProjectsDockerGuide : DockerGuideBase {
 ###############################################################################################
 class DockerInstallAssistent : DockerGuideBase {
 
-    DockerInstallAssistent([string] $project_name) {
-        $this._proj_name = $project_name
+    DockerInstallAssistent([string] $app_name) {
+        $this._app_name = $app_name
     }
 
     [void] banner() {
-        $app_name = $this._proj_name + " Docker Guide"
+        $app_name = $this._app_name
         @(
         "                                                          "
         " Docker For Powershell will now be installed!             "
@@ -1234,7 +1628,7 @@ class DockerInstallAssistent : DockerGuideBase {
 
     [void] reboot() {
         Write-Verbose "Restart Computer"
-        $app_name = $this._proj_name + " Docker Guide"
+        $app_name = $this._app_name
         $text = "Your Computer must be restarted to complete the current installation step. After this is finished start ${app_name} again to continue."
         $answer = $this.popup_message($text, $this.buttons.ok_cancel, $this.icons.information)
         if ($answer -ne $this.button_pressed.ok) {
@@ -1272,7 +1666,7 @@ class DockerInstallAssistent : DockerGuideBase {
     }
 
     [boolean] reboot_needed() {
-        $app_name = $this._proj_name + " Docker Guide"
+        $app_name = $this._app_name
         $test_wsl = wsl --status
         if ($test_wsl -eq $null) {
             Write-Host "It seems that you don't have Docker on your system!  ${app_name} does not run without it!"

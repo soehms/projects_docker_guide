@@ -10,12 +10,29 @@
 
 # Copy-Paste from here including the final Blankline
 
-$proj_name = "SageMath"
+param(
+    [string] $Type = "TwoInOne"
+)
 
-$path = "$HOME\AppData\Local\SageMathDockerGuide"
-$psfile = "sagemath_docker_guide.ps1"
+if ($Type -eq "OnlyDocker") {
+    $app_name = "SageMathDockerGuide"
+    $script_name = "sagemath_docker_guide"
+    $icofile = "sage.ico"
+}
+elseif ($Type -eq "OnlyAppImage") {
+    $app_name = "SageMathAppImageGuide"
+    $script_name = "sagemath_appimage_guide"
+    $icofile = "orange.ico"
+}
+else {
+    $app_name = "SageMathDockerAndAppImageGuide"
+    $script_name = "sagemath_docker_and_appimage_guide"
+    $icofile = "blue.ico"
+}
+
+$path = "$HOME\AppData\Local\$app_name"
+$psfile = "$script_name.ps1"
 $psmfile = "proj_docker_guide.psm1"
-$icofile = "sage.ico"
 $ps = "${path}\${psfile}"; $psm = "${path}\${psmfile}"; $ico = "${path}\${icofile}"
 
 $url = "https://raw.githubusercontent.com/soehms/projects_docker_guide/main/src"
@@ -27,7 +44,7 @@ Start-BitsTransfer -Source $urlpsm -Destination $psm
 Start-BitsTransfer -Source $urlico -Destination $ico
 (Get-Content -Raw $ps) -creplace '$psmfile', '$psm' | Set-Content -NoNewLine $ps # adjust module path
 
-$ShortcutPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "${proj_name}DockerGuide.lnk")
+$ShortcutPath = [System.IO.Path]::Combine([System.Environment]::GetFolderPath("Desktop"), "${app_name}.lnk")
 $WScriptObj = New-Object -ComObject WScript.Shell
 $Shortcut = $WScriptObj.CreateShortcut($ShortcutPath)
 $SourceFilePath = "C:\Windows\system32\WindowsPowerShell\v1.0\powershell.exe"
