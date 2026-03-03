@@ -11,7 +11,8 @@
 # Copy-Paste from here including the final Blankline
 
 param(
-    [string] $Type = "TwoInOne"
+    [string] $Type = "TwoInOne",
+    [string] $branch = "main"  # for testing
 )
 
 if ($Type -eq "OnlyDocker") {
@@ -35,7 +36,7 @@ $psfile = "$script_name.ps1"
 $psmfile = "proj_docker_guide.psm1"
 $ps = "${path}\${psfile}"; $psm = "${path}\${psmfile}"; $ico = "${path}\${icofile}"
 
-$url = "https://raw.githubusercontent.com/soehms/projects_docker_guide/main/src"
+$url = "https://raw.githubusercontent.com/soehms/projects_docker_guide/$branch/src"
 $urlps = "${url}/${psfile}"; $urlpsm = "${url}/${psmfile}"; $urlico = "${url}/${icofile}"
 
 New-Item -ItemType Directory -Force -Path $path

@@ -19,6 +19,7 @@ The following manual describes the *Docker and AppImage Guide* configured for Sa
 ## Table of Contents  <a name="TOF"></a>
 
 1. [Installation](#1.)
+    1. [Reduced versions](#1.1)
 2. [Usage](#2.)
     1. [Install Docker for Powershell](#2.1)
        1. [Install the Windows Subsystem for Linux](#2.1.1)
@@ -32,6 +33,7 @@ The following manual describes the *Docker and AppImage Guide* configured for Sa
     6. [Delete sessions](#2.6)
     7. [Delete software versions](#2.7)
     8. [Using optional SageMath packages](#2.8)
+    9. [Differences concerning the usage of AppImages](#2.9)
 3. [Uninstallation](#3.)
     1. [Continue using Docker for Powershell](#3.1)
     2. [Remove Docker for Powershell](#3.2)
@@ -59,6 +61,8 @@ This assumes that you have downloaded the installer to your default `Downloads` 
 
 If the installation was successful, you should see a SageMath icon (labeled *SageMath Docker and AppImage Guide*) on your desktop. Simply click on the icon to launch the application.
 
+![Launch SageMath Docker and AppImage Guide](screenshots/IconInstalled.png)
+
 ### 1.1 Reduced versions <a name="1.1"></a>
 
 Per default the installer creates the *2in1* version of the app. This allows you to use Docker and AppImages in one application. If you are sure that you only need one of these both, you may install a reduced version. To do this just run the according command:
@@ -68,9 +72,11 @@ Per default the installer creates the *2in1* version of the app. This allows you
 \Downloads\sagemath_docker_and_appimage_guide-0.3-installer.ps1 -Type OnlyAppImage
 ```
 
-instead of the one shown above. In the sequel we asume that you have the default version installed.
+instead of the one shown above.
 
-![Launch SageMath Docker and AppImage Guide](screenshots/IconInstalled.png)
+![Desktop icons](screenshots/ThreeIcons.png)
+
+You will get the blue desktop icon on the left if you do not use the `-Type` argument (the *2in1* version), and the orange icon for the *OnlyAppImage* version. Please note that many of the screenshots on this page correspond to the *OnlyDocker* version, as they were taken with version 0.2. Most of the description refers to the standard *2in1* version. For information on the specific behavior when using AppImages, see [Section 2.9](#2.9).
 
 ## 2. Usage <a name="2."></a>
 
@@ -239,7 +245,7 @@ Sessions prefixed with `B-` require some experience with Linux operating systems
 
 ![B-session selection](screenshots/B-SessionSelection.png)
 
-These sessions open a bash terminal where you can start SageMath by typing `sage` and then pressing `Enter`. After that, it is similar to an `S-` session (see section 2.5.1). The main difference is that the terminal does not close when you exit SageMath by typing `quit` or `exit`. This takes you back to the `bash` prompt.
+These sessions open a bash terminal where you can start SageMath by typing `sage` and then pressing `Enter`. After that, it is similar to an `S-` session (see [Section 2.5.1](#2.5.1)). The main difference is that the terminal does not close when you exit SageMath by typing `quit` or `exit`. This takes you back to the `bash` prompt.
 
 ![B-session connected](screenshots/B-SessionConnected.png)
 
@@ -261,7 +267,7 @@ To delete a session, simply select the `Delete session` line in the *List of ses
 After pressing OK, all selected sessions are deleted. Note that a session contains data that is not stored in your working directory. This data is lost when the session is deleted. This data is:
 
 1. The history data at the Sage prompt or in the notebook cell that you reach using the up and down arrow keys.
-2. Optional packages that you installed according to section 3.
+2. Optional packages that you installed according to [Section 3](#3.)
 3. Intermediate results of time-consuming calculations that were automatically saved to disk to save time when this intermediate result is used more than once (file cache).
 4. Code changes that you made in a `B-` session (see 2.5.3)
 
@@ -303,11 +309,38 @@ Note that you cannot install all kinds of optional packages in `S-` and `N-` ses
 
 [Go back to the Table of Contents](#TOF)
 
+### 2.9 Differences regarding the use of AppImages <a name="2.9"></a>
+
+Since version 0.3, SageMath can also be downloaded and run as an AppImage. In the *List of software that can be downloaded*, there is a new row and a new column called `host`, where the new row is labeled `github`:
+
+![Extended repository list](screenshots/AppImageRepo.png)
+
+This new line will take you to the corresponding list of available software versions:
+
+![AppImage versions](screenshots/AppImageVersions.png)
+
+Similar to Docker, the download starts immediately after selecting a line, and the progress is displayed in a separate window (see [Section 2.3](#2.3)). Once the download is complete, the software available on your computer is listed, just as with Docker:
+
+![AppImage downloads](screenshots/AppImageDownloaded.png)
+
+However, there is a key difference regarding sessions:
+
+![AppImage sessions](screenshots/AppImageSessions.png)
+
+1. Sessions in AppImages are connected immediately upon creation.
+2. Different sessions in AppImages can (permanently) share the same command history and the same optional packages, at least if they belong to the same software version.
+3. Sessions in AppImages are not persistent themselfes. They are deleted when the guide is closed.
+
+The advantage of AppImages is that they consume less disk space (about a third). Docker images, on the other hand, cover more SageMath realeases. Furthermore, new releases may be available sooner.
+
+
+[Go back to the Table of Contents](#TOF)
+
 ## 3. Uninstallation <a name="3."></a>
 
-The *SageMath Docker and AppImage Guide* itself hardly takes up any space on your hard drive. The underlying *Docker for Powershell* takes up some more space (about 0.3 GB plus 1.7 GB for `WSL`). However, this is not the majority of the space that may be used. Most of it is due to the use of the software, namely downloading the SageMath software as described in section 2.3.
+The *SageMath Docker and AppImage Guide* itself hardly takes up any space on your hard drive. The underlying *Docker for Powershell* takes up some more space (about 0.3 GB plus 1.7 GB for `WSL`). However, this is not the majority of the space that may be used. Most of it is due to the use of the software, namely downloading the SageMath software as described in [Section 2.3](#2.3).
 
-The most important thing to free up occupied space is therefore to remove these software versions from your computer. The size they take up on your device is indicated in the *List of software that have been downloaded*. To delete them, follow [section 2.7](#2.7). After that, do the following:
+The most important thing to free up occupied space is therefore to remove these software versions from your computer. The size they take up on your device is indicated in the *List of software that have been downloaded*. To delete them, follow [Section 2.7](#2.7). After that, do the following:
 
 ### 3.1 Continue using Docker for Powershell <a name="3.1"></a>
 
@@ -315,7 +348,7 @@ If you no longer want to use *SageMath Docker and AppImage Guide* but want to ke
 
 ### 3.2 Remove Docker for Powershell <a name="3.2"></a>
 
-If you don't like to use *Docker for Powershell* any more, open a Powershell terminal as described in [section 1](#1.). To see the explicit name of the `WSL` distribution including the version number type
+If you don't like to use *Docker for Powershell* any more, open a Powershell terminal as described in [Section 1](#1.). To see the explicit name of the `WSL` distribution including the version number type
 
 ```
 wsl -l -q
@@ -348,7 +381,7 @@ Next, start Powershell (for example, by typing `pwsh` in a bash terminal) and ca
 
 You also need to install Docker. If you don't have it, follow the instructions on the appropriate [Docker installation page](https://docs.docker.com/desktop/install/linux/).
 
-Instead of following the installation instructions for Windows as described in [section 1](#1.), simply download the files [sagemath_docker_and_appimage_guide.ps1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/sagemath_docker_and_appimage_guide.ps1) and [proj_docker_guide.psm1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide.psm1) to the folder where you want to work with SageMath. After starting Powershell there, you can start the guide by executing `.\sagemath_docker_and_appimage_guide.ps1`.
+Instead of following the installation instructions for Windows as described in [Section 1](#1.), simply download the files [sagemath_docker_and_appimage_guide.ps1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/sagemath_docker_and_appimage_guide.ps1) and [proj_docker_guide.psm1](https://raw.githubusercontent.com/soehms/projects_docker_guide/refs/heads/main/src/proj_docker_guide.psm1) to the folder where you want to work with SageMath. After starting Powershell there, you can start the guide by executing `.\sagemath_docker_and_appimage_guide.ps1`.
 
 The main difference from using it on Windows is the appearance of the selection windows. On Linux they look like the following example:
 
