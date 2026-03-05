@@ -375,7 +375,7 @@ wsl --uninstall
 
 ## 4. Usage on Linux <a name="4."></a>
 
-If you want to use *SageMath Docker and AppImage Guide* on Linux, you need to install *Powershell* on your system. To do so, follow the appropriate instructions on the [Powershell installation page](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.4).
+If you want to use *SageMath Docker and AppImage Guide* on Linux, you need to install *PowerShell* on your system. To do so, follow the appropriate instructions on the [Powershell installation page](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-linux?view=powershell-7.4). Note, however, that you do not need *PowerShell* to natively run Docker containers or AppImages. It is only required to run this guide application.
 
 Next, start Powershell (for example, by typing `pwsh` in a bash terminal) and call `Install-Module Microsoft.PowerShell.ConsoleGuiTools`. You also need to set an alias for your terminal. For example, if you have a Mate terminal, set `alias cmd=mate-terminal`.
 
